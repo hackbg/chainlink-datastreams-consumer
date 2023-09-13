@@ -1,6 +1,7 @@
 import * as crypto      from 'node:crypto'
 import * as https       from 'node:https'
 import * as querystring from 'node:querystring'
+import { WebSocket } from 'ws'
 
 const CLIENT_ID     = '16678a93-e5a2-424d-98da-47793460bc4d';
 const CLIENT_SECRET = 'HX7ALWUkf8s4faD52pNekYMfAzhgHnKPvwVFdyg26SQ2FQ2VMv4gkvFyLs7MXk5BeJ56gwhb5BsN52s6y95daXCrMsNsmmnQJSnjg2ejjFCbXcmHSTyunJhjKyczaCAP';
@@ -11,6 +12,9 @@ const bulkPath = '/api/v1/reports/bulk';
 
 fetchSingleReportSingleFeed();
 //fetchSingleReportManyFeeds();
+//openWebSocketSingleFeed().then(ws=>{
+  //ws.on('message', message => console.log({message}))
+//})
 
 class SingleReport {
   constructor(feedID, validFromTimestamp, observationsTimestamp, fullReport) {
@@ -69,39 +73,36 @@ async function fetchSingleReportSingleFeed({
   const data = await response.json()
   console.log(data)
   return data
+}
 
 
-  //return new Promise((resolve, reject) => {
-    //const req = https.request(options, (res) => {
-      //let rawData = '';
-      //res.on('data', (chunk) => {
-        //rawData += chunk;
-      //});
-      //res.on('end', () => {
-        //try {
-          //const parsedData = JSON.parse(rawData);
-          //if (parsedData.error) {
-            //console.log(parsedData);
-            //resolve();
-          //} else {
-            //const report = new SingleReport(
-              //parsedData.report.feedID,
-              //parsedData.report.validFromTimestamp,
-              //parsedData.report.observationsTimestamp,
-              //parsedData.report.fullReport
-            //);
-            //resolve(report);
-          //}
-        //} catch (error) {
-          //reject(error);
-        //}
-      //});
-    //});
-    //req.on('error', (error) => {
-      //reject(error);
-    //});
-    //req.end();
-  //});
+function openWebSocketSingleFeed({
+  hostname   = BASE_URL,
+  clientId   = CLIENT_ID,
+  userSecret = CLIENT_SECRET,
+  //feedID     = '0x00023496426b520583ae20a66d80484e0fc18544866a5b0bfee15ec771963274',
+  feedID     = '0x0002F18A75A7750194A6476C9AB6D51276952471BD90404904211A9D47F34E64',
+  timestamp  = +new Date()//'1000000'
+} = {}) {
+  const url = new URL(path, `wss://${hostname}`)
+  url.search = querystring.stringify({ feedID, timestamp: '1694212245',  })
+  return new Promise((resolve, reject)=>{
+    let ws
+    try {
+      ws = new WebSocket(url.toString(), {
+        headers: generateHeaders('GET', path, url.search, clientId, userSecret, timestamp)
+      })
+    } catch (e) {
+      console.error({e})
+      reject(e)
+    }
+    ws.on('error', error => {
+      reject(error)
+    })
+    ws.on('open', () => {
+      resolve(ws)
+    })
+  })
 }
 
 function fetchSingleReportManyFeeds() {
