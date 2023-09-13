@@ -24,27 +24,9 @@ Authentication Error Response Codes:
 
 | Endpoint | Type | Description | Sample Request | Sample Response |
 | --- | --- | --- | --- | --- |
-| /api/v1/reports/bulk | HTTP GET | Return multiple reports for multiple FeedIDs and the same timestamp. | GET /api/v1/reports/bulk?feedIDs=0x..., 0x..., 0x...&timestamp=XXXX | {
-"reports": [{
-    "feedID": hex encoded feedId,
-    "validFromTimestamp": report's earliest applicable timestamp,
-    "observationsTimestamp": report's latest applicable timestamp
-    "fullReport": a blob containing the report context + body, can be passed unmodified to the contract for verification 
-},...]
-} |
-| /api/v1/reports | HTTP GET | Returns a single report for a given timestamp. | GET /api/v1/reports?feedID=0x...&timestamp=XXXX | {
-"report"{
-    "feedID": hex encoded feedId,
-    "validFromTimestamp": report's earliest applicable timestamp,
-    "observationsTimestamp": report's latest applicable timestamp
-    "fullReport": a blob containing the report context + body, can be passed unmodified to the contract for verification
-} |
-| /api/v1/ws | websocket | Establishes a streaming websocket connection that sends reports for the given feedID(s) after they are verified | GET /api/v1/ws?feedIDs=0x..., 0x..., 0x... | {
-"report": {
-    "feedID": hex encoded feedId,
-    "fullReport": a blob containing the report context + body, can be passed unmodified to the contract for verification
-}
-} |
+| /api/v1/reports/bulk | HTTP GET | Return multiple reports for multiple FeedIDs and the same timestamp. | GET /api/v1/reports/bulk?feedIDs=0x..., 0x..., 0x...&timestamp=XXXX | {"reports": [{ "feedID": hex encoded feedId, "validFromTimestamp": report's earliest applicable timestamp, "observationsTimestamp": report's latest applicable timestamp "fullReport": a blob containing the report context + body, can be passed unmodified to the contract for verification },...] } |
+| /api/v1/reports | HTTP GET | Returns a single report for a given timestamp. | GET /api/v1/reports?feedID=0x...&timestamp=XXXX | { "report"{ "feedID": hex encoded feedId, "validFromTimestamp": report's earliest applicable timestamp, "observationsTimestamp": report's latest applicable timestamp "fullReport": a blob containing the report context + body, can be passed unmodified to the contract for verification } |
+| /api/v1/ws | websocket | Establishes a streaming websocket connection that sends reports for the given feedID(s) after they are verified | GET /api/v1/ws?feedIDs=0x..., 0x..., 0x... | { "report": { "feedID": hex encoded feedId, "fullReport": a blob containing the report context + body, can be passed unmodified to the contract for verification } } |
 
 ### Parameters
 
