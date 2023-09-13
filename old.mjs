@@ -35,67 +35,71 @@ class BulkReportResponse {
 
 function generateHMAC(method, path, body, clientId, timestamp, userSecret) {
   const serverBodyHash = crypto.createHash('sha256').update(body).digest();
-  const serverBodyHashString = `${method} ${path} ${serverBodyHash.toString('hex')} ${clientId} ${timestamp}`;
+  const serverBodyHashString = `${method} ${path} ${serverBodyHash.toString('hex')} ${clientId} ${timestamp}`
+	console.log(`Generating HMAC with the following: ${serverBodyHashString}`)
   const signedMessage = crypto.createHmac('sha256', Buffer.from(userSecret, 'utf8')).update(serverBodyHashString).digest();
   const userHmac = signedMessage.toString('hex');
   return userHmac;
 }
 
-function generateHeaders(method, path, clientId, userSecret) {
+function generateHeaders(method, path, search, clientId, userSecret, timestamp = Date.now()) {
   const header = {};
-  const timestamp = Date.now();
-  const hmacString = generateHMAC(method, path, '', clientId, timestamp, userSecret);
+  const hmacString = generateHMAC(method, `${path}${search}`, '', clientId, timestamp, userSecret);
   header['Authorization'] = clientId;
   header['X-Authorization-Timestamp'] = timestamp.toString();
   header['X-Authorization-Signature-SHA256'] = hmacString;
   return header;
 }
 
-function fetchSingleReportSingleFeed() {
-  const clientId = CLIENT_ID;
-  const userSecret = CLIENT_SECRET;
-  const feedId = '0x00023496426b520583ae20a66d80484e0fc18544866a5b0bfee15ec771963274';
-  const params = {
-    feedId: feedId,
-    blockTimestamp: '1000000'
-  };
-  const options = {
-    method: 'GET',
-    hostname: BASE_URL,
-    path: `${path}?${querystring.stringify(params)}`,
-    headers: generateHeaders('GET', path, clientId, userSecret)
-  };
-  return new Promise((resolve, reject) => {
-    const req = https.request(options, (res) => {
-      let rawData = '';
-      res.on('data', (chunk) => {
-        rawData += chunk;
-      });
-      res.on('end', () => {
-        try {
-          const parsedData = JSON.parse(rawData);
-          if (parsedData.error) {
-            console.log(parsedData);
-            resolve();
-          } else {
-            const report = new SingleReport(
-              parsedData.report.feedID,
-              parsedData.report.validFromTimestamp,
-              parsedData.report.observationsTimestamp,
-              parsedData.report.fullReport
-            );
-            resolve(report);
-          }
-        } catch (error) {
-          reject(error);
-        }
-      });
-    });
-    req.on('error', (error) => {
-      reject(error);
-    });
-    req.end();
-  });
+async function fetchSingleReportSingleFeed({
+  hostname   = BASE_URL,
+  clientId   = CLIENT_ID,
+  userSecret = CLIENT_SECRET,
+  feedId     = '0x00023496426b520583ae20a66d80484e0fc18544866a5b0bfee15ec771963274',
+  timestamp  = +new Date()//'1000000'
+} = {}) {
+  const url = new URL(path, `https://${hostname}`)
+  url.search = querystring.stringify({ feedId, timestamp })
+  console.log('Fetching', url.toString())
+  const headers = generateHeaders('GET', path, url.search, clientId, userSecret, timestamp);
+  console.log({headers})
+  const response = await fetch(url, { headers });
+  const data = await response.json()
+  console.log(data)
+  return data
+
+
+  //return new Promise((resolve, reject) => {
+    //const req = https.request(options, (res) => {
+      //let rawData = '';
+      //res.on('data', (chunk) => {
+        //rawData += chunk;
+      //});
+      //res.on('end', () => {
+        //try {
+          //const parsedData = JSON.parse(rawData);
+          //if (parsedData.error) {
+            //console.log(parsedData);
+            //resolve();
+          //} else {
+            //const report = new SingleReport(
+              //parsedData.report.feedID,
+              //parsedData.report.validFromTimestamp,
+              //parsedData.report.observationsTimestamp,
+              //parsedData.report.fullReport
+            //);
+            //resolve(report);
+          //}
+        //} catch (error) {
+          //reject(error);
+        //}
+      //});
+    //});
+    //req.on('error', (error) => {
+      //reject(error);
+    //});
+    //req.end();
+  //});
 }
 
 function fetchSingleReportManyFeeds() {
