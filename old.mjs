@@ -36,7 +36,7 @@ class BulkReportResponse {
 function generateHMAC(method, path, body, clientId, timestamp, userSecret) {
   const serverBodyHash = crypto.createHash('sha256').update(body).digest();
   const serverBodyHashString = `${method} ${path} ${serverBodyHash.toString('hex')} ${clientId} ${timestamp}`
-	console.log(`Generating HMAC with the following: ${serverBodyHashString}`)
+	console.log(`Generating HMAC with the following:  ${serverBodyHashString}`)
   const signedMessage = crypto.createHmac('sha256', Buffer.from(userSecret, 'utf8')).update(serverBodyHashString).digest();
   const userHmac = signedMessage.toString('hex');
   return userHmac;
@@ -55,14 +55,16 @@ async function fetchSingleReportSingleFeed({
   hostname   = BASE_URL,
   clientId   = CLIENT_ID,
   userSecret = CLIENT_SECRET,
-  feedId     = '0x00023496426b520583ae20a66d80484e0fc18544866a5b0bfee15ec771963274',
+  //feedID     = '0x00023496426b520583ae20a66d80484e0fc18544866a5b0bfee15ec771963274',
+  feedID     = '0x0002F18A75A7750194A6476C9AB6D51276952471BD90404904211A9D47F34E64',
   timestamp  = +new Date()//'1000000'
 } = {}) {
   const url = new URL(path, `https://${hostname}`)
-  url.search = querystring.stringify({ feedId, timestamp })
+  url.search = querystring.stringify({ feedID, timestamp: '1694212245'/*Math.floor(timestamp/1000)*/ })
   console.log('Fetching', url.toString())
   const headers = generateHeaders('GET', path, url.search, clientId, userSecret, timestamp);
   console.log({headers})
+  console.log({query:url.search})
   const response = await fetch(url, { headers });
   const data = await response.json()
   console.log(data)

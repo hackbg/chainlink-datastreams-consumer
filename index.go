@@ -54,7 +54,7 @@ func GenerateHMAC(method string, path string, body []byte, clientId string, time
 		hex.EncodeToString(serverBodyHash.Sum(nil)),
 		clientId,
 		timestamp)
-	fmt.Println("Generating HMAC with the following: ", serverBodyHashString)
+	fmt.Println("Generating HMAC with the following:  ", serverBodyHashString)
 	signedMessage := hmac.New(sha256.New, []byte(userSecret))
 	signedMessage.Write([]byte(serverBodyHashString))
 	userHmac := hex.EncodeToString(signedMessage.Sum(nil))
