@@ -249,20 +249,13 @@ export class Report {
     }
   }
 
-  constructor ({
-    feedID,
-    validFromTimestamp,
-    observationsTimestamp,
-    fullReport: { reportContext, reportBlob: { version, decoded }, rawRs, rawSs, rawVs }
-  }) {
-    Object.defineProperty(this, 'version', { get () { return version }})
+  constructor ({ feedID, validFromTimestamp, observationsTimestamp, fullReport }) {
+    const { reportContext, reportBlob: { version, decoded }, rawRs, rawSs, rawVs } = fullReport
     Object.assign(this, {
-      validFromTimestamp,
-      observationsTimestamp,
-      reportContext,
-      rawRs,
-      rawSs,
-      rawVs,
+      validFromTimestamp, observationsTimestamp, reportContext, rawRs, rawSs, rawVs,
+    })
+    Object.defineProperty(this, 'version', {
+      get () { return version }
     })
     for (const {name} of Report.reportBlobAbiSchema[this.version]) {
       this[name] = decoded[name]
