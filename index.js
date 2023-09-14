@@ -92,7 +92,7 @@ export class Socket {
 
   removeEventListener = (event, callback) => {
     if (this.listeners[event]) {
-      this.listeners[event].add(callback)
+      this.listeners[event].remove(callback)
     }
   }
 
