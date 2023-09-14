@@ -1,13 +1,12 @@
 import { WebSocket } from 'ws'
 import { AbiCoder } from 'ethers'
-
 import { hmac } from '@noble/hashes/hmac'
 import { sha256 } from '@noble/hashes/sha256'
 import { base16, bytes } from '@scure/base'
 
 const encoder = new TextEncoder()
 
-export default class LOLSDK extends EventTarget {
+export default class LOLSDK {
 
   constructor ({
     hostname = "api.testnet-dataengine.chain.link",
@@ -16,13 +15,19 @@ export default class LOLSDK extends EventTarget {
     clientSecret = 'HX7ALWUkf8s4faD52pNekYMfAzhgHnKPvwVFdyg26SQ2FQ2VMv4gkvFyLs7MXk5BeJ56gwhb5BsN52s6y95daXCrMsNsmmnQJSnjg2ejjFCbXcmHSTyunJhjKyczaCAP',
     feeds = []
   } = {}) {
-    super()
-    Object.assign(this, {
-      hostname,
-      wsHostname,
-      clientID,
-      clientSecret
+
+    Object.assign(this, { hostname, wsHostname, clientID, })
+
+    // Set and hide secret
+    const setSecret = secret => Object.defineProperty(this, 'clientSecret', {
+      enumerable: true,
+      configurable: true,
+      get () { return secret },
+      set (secret) { setSecret(secret); return secret }
     })
+
+    setSecret(clientSecret)
+
   }
 
   fetchFeed = ({ timestamp, feed }) => this.fetch('/api/v1/reports', {
