@@ -52,22 +52,9 @@ export default class LOLSDK {
     const headers = generateHeaders('GET', path, url.search, this.clientID, this.clientSecret)
     return new Promise((resolve, reject)=>{
       const ws = new WebSocket(url.toString(), { headers })
-      ws.on('error', error => {
-        reject(error)
-      })
-      ws.on('open', () => {
-        resolve(ws)
-      })
+      ws.on('error', error => reject(error))
+      ws.on('open', () => resolve(ws))
     })
-    //export function openWebSocketSingleFeed({
-      //hostname   = BASE_URL,
-      //clientId   = CLIENT_ID,
-      //userSecret = CLIENT_SECRET,
-      ////feedID     = '0x00023496426b520583ae20a66d80484e0fc18544866a5b0bfee15ec771963274',
-      //feedID     = '0x0002F18A75A7750194A6476C9AB6D51276952471BD90404904211A9D47F34E64',
-      //timestamp  = +new Date()//'1000000'
-    //} = {}) {
-    //}
   }
 
 }
