@@ -34,6 +34,9 @@ export default class LOLSDK {
   fetchFeeds = ({ timestamp, feedIDs }) => this.fetch('/api/v1/reports/bulk', {
     feedIDs: feedIDs.join(','),
     timestamp
+  }).then(response => {
+    if (response.error) throw new Error(response.error)
+    return response.reports.map(report=>SingleReport.fromAPIResponse({ report }))
   })
 
   subscribeToFeed = ({ feedIDs }) => this.openSocket('/api/v1/ws', {
@@ -120,10 +123,10 @@ export class SingleReport {
   }
 
   constructor ({ feedID, validFromTimestamp, observationsTimestamp, fullReport }) {
-    this.feedID = feedID;
-    this.validFromTimestamp = validFromTimestamp;
-    this.observationsTimestamp = observationsTimestamp;
-    this.fullReport = fullReport;
+    this.feedID = feedID
+    this.validFromTimestamp = validFromTimestamp
+    this.observationsTimestamp = observationsTimestamp
+    this.fullReport = fullReport
   }
 
 }
@@ -177,8 +180,8 @@ export class ReportBlob {
     if (legacyV1FeedIDs.has(feedId)) {
       return 'v1'
     }
-    const decoded = Uint8Array.from(feedId.slice(2).match(/.{1,2}/g).map((byte) => parseInt(byte, 16)))
-    const version = new DataView(decoded.buffer).getUint16(0)
+    const decoded = feedId.slice(2).match(/.{1,2}/g).map((byte) => parseInt(byte, 16))
+    const version = new DataView(Uint8Array.from(decoded).buffer).getUint16(0)
     switch (version) {
       case 1: return 'v1'
       case 2: return 'v2'
@@ -234,13 +237,7 @@ export class ReportBlob {
 
 }
 
-export class BulkReportResponse {
-  constructor(reports) {
-    this.reports = reports;
-  }
-}
-
-export const legacyV1FeedIDs = new Set(
+export const legacyV1FeedIDs = new Set([
 
   // Arbitrum mainnet (prod)
   "0xb43dc495134fa357725f93539511c5a4febeadf56e7c29c96566c825094f0b20",
@@ -296,4 +293,4 @@ export const legacyV1FeedIDs = new Set(
   "0xa5b07943b89e2c278fc8a2754e2854316e03cb959f6d323c2d5da218fb6b0ff8",
   "0x1c2c0dfac0eb2aae2c05613f0d677daae164cdd406bd3dd6153d743302ce56e8"
 
-)
+])
