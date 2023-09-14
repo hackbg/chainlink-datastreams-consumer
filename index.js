@@ -10,7 +10,7 @@ export default class LOLSDK {
 
   constructor ({ hostname, wsHostname, clientID, clientSecret } = {}) {
 
-    Object.assign(this, { hostname, wsHostname, clientID, })
+    Object.assign(this, { hostname, wsHostname, clientID })
 
     // Set and hide secret
     const setSecret = secret => Object.defineProperty(this, 'clientSecret', {
@@ -85,15 +85,34 @@ export class Socket {
     this.listeners = {}
   }
 
-  addEventListener = (event, callback) => {
+  close = () => {
+    this.ws.off('message', this.decodeAndEmit)
+    this.ws.close()
+  }
+
+  subscribeTo = async feeds => {
+  }
+
+  unsubscribeFrom = async feeds => {
+  }
+
+  on = (event, callback) => {
     this.listeners[event] ??= new Set()
     this.listeners[event].add(callback)
   }
 
-  removeEventListener = (event, callback) => {
+  off = (event, callback) => {
     if (this.listeners[event]) {
       this.listeners[event].remove(callback)
     }
+  }
+
+  once = (event, callback) => {
+    const onceCallback = (...args) => {
+      callback(...args)
+      this.off(event, onceCallback)
+    }
+    this.on(event, onceCallback)
   }
 
   decodeAndEmit = message => {
@@ -102,17 +121,6 @@ export class Socket {
         callback.call(this, Report.fromSocketMessage(message))
       }
     }
-  }
-
-  addFeeds = feeds => {
-  }
-
-  removeFeeds = feeds => {
-  }
-
-  close = () => {
-    this.ws.off('message', this.decodeAndEmit)
-    this.ws.close()
   }
 
 }
