@@ -5,6 +5,8 @@ import { hmac } from '@noble/hashes/hmac'
 import { sha256 } from '@noble/hashes/sha256'
 import { base16, bytes } from '@scure/base'
 
+const encoder = new TextEncoder()
+
 export default class LOLSDK {
 
   constructor ({
@@ -78,7 +80,7 @@ export default class LOLSDK {
     const serverBodyHash = base16.encode(sha256.create().update(body).digest()).toLowerCase()
     const serverBodyHashString = `${method} ${path} ${serverBodyHash} ${this.clientID} ${timestamp}`
     console.log(`Generating HMAC from: ${serverBodyHashString}`)
-    const signedMessage = hmac(sha256, Buffer.from(this.clientSecret, 'utf8'), serverBodyHashString)
+    const signedMessage = hmac(sha256, encoder.encode(this.clientSecret), serverBodyHashString)
     return base16.encode(signedMessage).toLowerCase()
   }
 
