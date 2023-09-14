@@ -1,10 +1,9 @@
 import { WebSocket } from 'ws'
-import * as Base64 from 'js-base64'
 import { AbiCoder } from 'ethers'
 
 import { hmac } from '@noble/hashes/hmac'
 import { sha256 } from '@noble/hashes/sha256'
-import { base16 } from '@scure/base'
+import { base16, bytes } from '@scure/base'
 
 export default class LOLSDK {
 
@@ -117,7 +116,7 @@ export class Report {
   }
 
   static decodeABIResponseBase64 = (schema, data) =>
-    this.decodeABIResponseHex(schema, Base64.toUint8Array(data))
+    this.decodeABIResponseHex(schema, bytes('base64', data))
 
   static decodeABIResponseHex = (schema, data) => {
     const decoded = AbiCoder.defaultAbiCoder().decode(schema, data)

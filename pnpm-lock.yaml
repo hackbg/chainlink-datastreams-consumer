@@ -10,9 +10,6 @@ dependencies:
   ethers:
     specifier: ^6.7.1
     version: 6.7.1
-  js-base64:
-    specifier: ^3.7.5
-    version: 3.7.5
   ws:
     specifier: ^8.14.1
     version: 8.14.1
@@ -62,10 +59,6 @@ packages:
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
-    dev: false
-
-  /js-base64@3.7.5:
-    resolution: {integrity: sha512-3MEt5DTINKqfScXKfJFrRbxkrnk2AxPWGBL/ycjz4dK8iqiSJ06UxD8jh8xuh6p10TX4t2+7FsBYVxxQbMg+qA==}
     dev: false
 
   /tslib@2.4.0:
