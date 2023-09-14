@@ -31,7 +31,9 @@ export default class LOLSDK {
   fetchFeed = ({ timestamp, feedID }) => this.fetch('/api/v1/reports', {
     feedID,
     timestamp
-  }).then(SingleReport.fromAPIResponse)
+  }).then(
+    SingleReport.fromAPIResponse
+  )
 
   fetchFeeds = ({ timestamp, feedIDs }) => this.fetch('/api/v1/reports/bulk', {
     feedIDs: feedIDs.join(','),
@@ -109,14 +111,6 @@ export class SingleReport {
 
 export class FullReport {
 
-  static abiSchema = [
-    {name: "reportContext", type: "bytes32[3]"},
-    {name: "reportBlob",    type: "bytes"},
-    {name: "rawRs",         type: "bytes32[]"},
-    {name: "rawSs",         type: "bytes32[]"},
-    {name: "rawVs",         type: "bytes32"},
-  ]
-
   static fromBase64 = base64String => {
     const decoded = decodeBase64ABIResponse(this.abiSchema, base64String)
     decoded.reportBlob = ReportBlob.fromHex(decoded.reportBlob)
@@ -129,6 +123,14 @@ export class FullReport {
     new this(decoded)
   }
 
+  static abiSchema = [
+    {name: "reportContext", type: "bytes32[3]"},
+    {name: "reportBlob",    type: "bytes"},
+    {name: "rawRs",         type: "bytes32[]"},
+    {name: "rawSs",         type: "bytes32[]"},
+    {name: "rawVs",         type: "bytes32"},
+  ]
+
   constructor ({
     reportContext, reportBlob, rawRs, rawSs, rawVs
   }) {
@@ -140,6 +142,31 @@ export class FullReport {
 }
 
 export class ReportBlob {
+
+  static fromHex = base64String => {
+    const {feedId} = decodeABIResponse([ {name: 'feedId', type: 'bytes32'} ], base64String)
+    const version = this.feedIdToVersion(feedId)
+    const decoded = decodeABIResponse(this.abiSchema[version], base64String)
+    return new ReportBlob(version, decoded)
+  }
+
+  static feedIdToVersion = feedId => {
+    assert.ok(
+      feedId.startsWith('0x') && feedId.length === 66,
+      'feed ID must be a 66-character hex string starting with "0x"'
+    )
+    if (Data.legacyV1FeedIDs.has(feedId)) {
+      return 'v1'
+    }
+    const decoded = Uint8Array.from(feedId.slice(2).match(/.{1,2}/g).map((byte) => parseInt(byte, 16)))
+    const version = new DataView(decoded.buffer).getUint16(0)
+    switch (version) {
+      case 1: return 'v1'
+      case 2: return 'v2'
+      case 3: return 'v3'
+      default: throw new Error(`Unsupported version ${version} from feed ID ${feedId}`)
+    }
+  }
 
   static abiSchema = {
     v1: [
@@ -175,8 +202,12 @@ export class ReportBlob {
     ]
   }
 
-  static fromHex = base64String =>
-    new this(decodeABIResponse(this.abiSchema, base64String))
+  constructor (version, data) {
+    Object.defineProperty(this, 'version', { get () { return version }})
+    for (const {name} of ReportBlob.abiSchema[version]) {
+      this[name] = data[name]
+    }
+  }
 
 }
 
