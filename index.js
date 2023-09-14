@@ -95,9 +95,16 @@ export default class LOLSDK extends EventEmitter {
   }
 
   disconnect = () => {
-    this.ws.off('message', this.decodeAndEmit)
-    this.ws.close()
-    delete this.ws
+    const { ws } = this
+    if (ws) {
+      ws.off('message', this.decodeAndEmit)
+      if (ws.readyState === WebSocket.CONNECTING) {
+        ws.on('open', () => ws.close())
+      } else if (ws.readyState === WebSocket.OPEN) {
+        ws.close()
+      }
+      delete this.ws
+    }
   }
 
   decodeAndEmit = message => {
