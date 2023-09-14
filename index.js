@@ -1,7 +1,5 @@
-import * as crypto      from 'node:crypto'
-import * as https       from 'node:https'
-import * as querystring from 'node:querystring'
-import * as assert      from 'node:assert'
+import * as crypto from 'node:crypto'
+import * as assert from 'node:assert'
 
 import { WebSocket } from 'ws'
 import * as Base64 from 'js-base64'
@@ -49,7 +47,7 @@ export default class LOLSDK {
     const url = new URL(path, `https://${this.hostname}`)
     url.search = new URLSearchParams(params).toString()
     this.log('Fetching', url.toString())
-    const headers = generateHeaders('GET', path, url.search, this.clientID, this.clientSecret);
+    const headers = this.generateHeaders('GET', path, url.search);
     const response = await fetch(url, { headers });
     const data = await response.json()
     this.log('Fetched', data)
@@ -58,9 +56,9 @@ export default class LOLSDK {
 
   async openSocket (path, params = {}) {
     const url = new URL(path, `wss://${this.wsHostname}`)
-    url.search = querystring.stringify(params).toString()
+    url.search = new URLSearchParams(params).toString()
     this.log('Opening WebSocket to', url.toString())
-    const headers = generateHeaders('GET', path, url.search, this.clientID, this.clientSecret)
+    const headers = this.generateHeaders('GET', path, url.search)
     return new Promise((resolve, reject)=>{
       const ws = new WebSocket(url.toString(), { headers })
       ws.on('error', error => reject(error))
@@ -68,7 +66,29 @@ export default class LOLSDK {
     })
   }
 
+  generateHeaders (method, path, search, timestamp = +new Date()) {
+    const hmacString = this.generateHMAC(method, `${path}${search}`, '', timestamp)
+    return {
+      'Authorization': this.clientID,
+      'X-Authorization-Timestamp': timestamp.toString(),
+      'X-Authorization-Signature-SHA256': hmacString,
+    }
+  }
+
+  generateHMAC (method, path, body, timestamp) {
+    const serverBodyHash = crypto.createHash('sha256').update(body).digest()
+    const serverBodyHashString = `${method} ${path} ${serverBodyHash.toString('hex')} ${this.clientID} ${timestamp}`
+    console.log(`Generating HMAC from: ${serverBodyHashString}`)
+    const signedMessage = crypto.createHmac(
+      'sha256',
+      Buffer.from(this.clientSecret, 'utf8')
+    ).update(serverBodyHashString).digest();
+    const userHmac = signedMessage.toString('hex');
+    return userHmac;
+  }
+
 }
+
 
 const decodeBase64ABIResponse = (schema, data) =>
   decodeABIResponse(schema, Base64.toUint8Array(data))
@@ -89,9 +109,11 @@ const decodeABIResponse = (schema, data) => {
 
 export class SingleReport {
 
-  static fromAPIResponse = ({
-    report: { feedID, validFromTimestamp, observationsTimestamp, fullReport }
-  }) => {
+  static fromAPIResponse = (response) => {
+    if (response.error) throw new Error(response.error)
+    const {
+      report: { feedID, validFromTimestamp, observationsTimestamp, fullReport }
+    } = response
     return new this({
       feedID,
       validFromTimestamp,
@@ -226,22 +248,3 @@ export class BulkReportResponse {
     this.reports = reports;
   }
 }
-
-function generateHeaders(method, path, search, clientId, userSecret, timestamp = +new Date()) {
-  const header = {};
-  const hmacString = generateHMAC(method, `${path}${search}`, '', clientId, timestamp, userSecret);
-  header['Authorization'] = clientId;
-  header['X-Authorization-Timestamp'] = timestamp.toString();
-  header['X-Authorization-Signature-SHA256'] = hmacString;
-  return header;
-}
-
-function generateHMAC(method, path, body, clientId, timestamp, userSecret) {
-  const serverBodyHash = crypto.createHash('sha256').update(body).digest();
-  const serverBodyHashString = `${method} ${path} ${serverBodyHash.toString('hex')} ${clientId} ${timestamp}`
-	console.log(`Generating HMAC with the following:  ${serverBodyHashString}`)
-  const signedMessage = crypto.createHmac('sha256', Buffer.from(userSecret, 'utf8')).update(serverBodyHashString).digest();
-  const userHmac = signedMessage.toString('hex');
-  return userHmac;
-}
-
