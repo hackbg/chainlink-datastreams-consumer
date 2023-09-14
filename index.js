@@ -8,13 +8,7 @@ const encoder = new TextEncoder()
 
 export default class LOLSDK {
 
-  constructor ({
-    hostname = "api.testnet-dataengine.chain.link",
-    wsHostname = "ws.testnet-dataengine.chain.link",
-    clientID = '16678a93-e5a2-424d-98da-47793460bc4d',
-    clientSecret = 'HX7ALWUkf8s4faD52pNekYMfAzhgHnKPvwVFdyg26SQ2FQ2VMv4gkvFyLs7MXk5BeJ56gwhb5BsN52s6y95daXCrMsNsmmnQJSnjg2ejjFCbXcmHSTyunJhjKyczaCAP',
-    feeds = []
-  } = {}) {
+  constructor ({ hostname, wsHostname, clientID, clientSecret } = {}) {
 
     Object.assign(this, { hostname, wsHostname, clientID, })
 
