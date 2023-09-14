@@ -13,12 +13,14 @@ class EventEmitter {
   on = (event, callback) => {
     this.listeners[event] ??= new Set()
     this.listeners[event].add(callback)
+    return this
   }
 
   off = (event, callback) => {
     if (this.listeners[event]) {
       this.listeners[event].delete(callback)
     }
+    return this
   }
 
   once = (event, callback) => {
@@ -27,6 +29,7 @@ class EventEmitter {
       this.off(event, onceCallback)
     }
     this.on(event, onceCallback)
+    return this
   }
 
 }
