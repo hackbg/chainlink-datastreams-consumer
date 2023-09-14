@@ -80,36 +80,17 @@ export default class LOLSDK {
     const serverBodyHash = crypto.createHash('sha256').update(body).digest()
     const serverBodyHashString = `${method} ${path} ${serverBodyHash.toString('hex')} ${this.clientID} ${timestamp}`
     console.log(`Generating HMAC from: ${serverBodyHashString}`)
-    const signedMessage = crypto.createHmac(
-      'sha256',
-      Buffer.from(this.clientSecret, 'utf8')
-    ).update(serverBodyHashString).digest();
+    const signedMessage = crypto.createHmac('sha256', Buffer.from(this.clientSecret, 'utf8'))
+      .update(serverBodyHashString).digest();
     const userHmac = signedMessage.toString('hex');
     return userHmac;
   }
 
 }
 
-const decodeBase64ABIResponse = (schema, data) =>
-  decodeABIResponse(schema, Base64.toUint8Array(data))
-
-const decodeABIResponse = (schema, data) => {
-  const decoded = AbiCoder.defaultAbiCoder().decode(schema, data)
-  assert.equal(
-    schema.length,
-    decoded.length,
-    `length of schema (${schema.length}) and decoded data (${decoded.length}) should be equal`
-  )
-  const result = {}
-  for (const index in schema) {
-    result[schema[index].name] = decoded[index]
-  }
-  return result
-}
-
 export class SingleReport {
 
-  static fromAPIResponse = (response) => {
+  static fromAPIResponse = response => {
     if (response.error) throw new Error(response.error)
     const {
       report: { feedID, validFromTimestamp, observationsTimestamp, fullReport }
@@ -122,11 +103,14 @@ export class SingleReport {
     })
   }
 
+  static fromSocketMessage = message => {
+    const { report: { feedID, fullReport } } = JSON.parse(message)
+    const report = FullReport.fromHex(fullReport)
+    return report
+  }
+
   constructor ({ feedID, validFromTimestamp, observationsTimestamp, fullReport }) {
-    this.feedID = feedID
-    this.validFromTimestamp = validFromTimestamp
-    this.observationsTimestamp = observationsTimestamp
-    this.fullReport = fullReport
+    Object.assign(this, { feedID, validFromTimestamp, observationsTimestamp, fullReport })
   }
 
 }
@@ -139,10 +123,10 @@ export class FullReport {
     return new this(decoded)
   }
 
-  static fromHex = base64String => {
-    const decoded = decodeABIResponse(this.abiSchema, base64String)
+  static fromHex = hexString => {
+    const decoded = decodeABIResponse(this.abiSchema, hexString)
     decoded.reportBlob = ReportBlob.fromHex(decoded.reportBlob)
-    new this(decoded)
+    return new this(decoded)
   }
 
   static abiSchema = [
@@ -165,18 +149,21 @@ export class FullReport {
 
 export class ReportBlob {
 
-  static fromHex = base64String => {
-    const {feedId} = decodeABIResponse([ {name: 'feedId', type: 'bytes32'} ], base64String)
+  static fromHex = hexString => {
+    const {feedId} = decodeABIResponse([ {name: 'feedId', type: 'bytes32'} ], hexString)
     const version = this.feedIdToVersion(feedId)
-    const decoded = decodeABIResponse(this.abiSchema[version], base64String)
+    const decoded = decodeABIResponse(this.abiSchema[version], hexString)
     return new ReportBlob(version, decoded)
   }
 
   static feedIdToVersion = feedId => {
-    assert.ok(
-      feedId.startsWith('0x') && feedId.length === 66,
-      'feed ID must be a 66-character hex string starting with "0x"'
-    )
+    if (!(feedId.startsWith('0x') && feedId.length === 66)) {
+      throw Object.assign(new Error(
+        'feed ID must be 32 bytes hex string starting with "0x"'
+      ), {
+        feedId
+      })
+    }
     if (legacyV1FeedIDs.has(feedId)) {
       return 'v1'
     }
@@ -235,6 +222,23 @@ export class ReportBlob {
     return this.version
   }
 
+}
+
+const decodeBase64ABIResponse = (schema, data) =>
+  decodeABIResponse(schema, Base64.toUint8Array(data))
+
+const decodeABIResponse = (schema, data) => {
+  const decoded = AbiCoder.defaultAbiCoder().decode(schema, data)
+  assert.equal(
+    schema.length,
+    decoded.length,
+    `length of schema (${schema.length}) and decoded data (${decoded.length}) should be equal`
+  )
+  const result = {}
+  for (const index in schema) {
+    result[schema[index].name] = decoded[index]
+  }
+  return result
 }
 
 export const legacyV1FeedIDs = new Set([
