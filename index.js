@@ -66,18 +66,16 @@ export default class LOLSDK extends EventTarget {
     return {
       'Authorization': this.clientID,
       'X-Authorization-Timestamp': timestamp.toString(),
-      'X-Authorization-Signature-SHA256': this.generateHMAC(
-        method, `${path}${search}`, '', timestamp
-      ),
+      'X-Authorization-Signature-SHA256': base16.encode(
+        hmac(sha256, encoder.encode(this.clientSecret), [
+          method,
+          `${path}${search}`,
+          base16.encode(sha256.create().update('').digest()).toLowerCase(),
+          this.clientID,
+          timestamp
+        ].join(' '))
+      ).toLowerCase()
     }
-  }
-
-  generateHMAC (method, path, body, timestamp) {
-    const serverBodyHash = base16.encode(sha256.create().update(body).digest()).toLowerCase()
-    const serverBodyHashString = `${method} ${path} ${serverBodyHash} ${this.clientID} ${timestamp}`
-    console.log(`Generating HMAC from: ${serverBodyHashString}`)
-    const signedMessage = hmac(sha256, encoder.encode(this.clientSecret), serverBodyHashString)
-    return base16.encode(signedMessage).toLowerCase()
   }
 
 }
