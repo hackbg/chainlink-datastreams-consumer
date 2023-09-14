@@ -39,7 +39,6 @@ export default class LOLSDK extends EventTarget {
 
   subscribeToFeed = ({ feedIDs }) => this.openSocket('/api/v1/ws', {
     feedIDs: feedIDs.join(','),
-    timestamp: '1694212245' // sockets shouldn't need this, right?
   })
 
   async fetch (path, params = {}) {
