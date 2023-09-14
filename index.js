@@ -8,12 +8,14 @@ export default class LOLSDK {
   constructor ({
     log = () => {},
     hostname = "api.testnet-dataengine.chain.link",
+    wsHostname = "ws.testnet-dataengine.chain.link",
     clientID = '16678a93-e5a2-424d-98da-47793460bc4d',
     clientSecret = 'HX7ALWUkf8s4faD52pNekYMfAzhgHnKPvwVFdyg26SQ2FQ2VMv4gkvFyLs7MXk5BeJ56gwhb5BsN52s6y95daXCrMsNsmmnQJSnjg2ejjFCbXcmHSTyunJhjKyczaCAP'
   } = {}) {
     Object.assign(this, {
       log,
       hostname,
+      wsHostname,
       clientID,
       clientSecret
     })
@@ -22,15 +24,15 @@ export default class LOLSDK {
   fetchFeed = ({ timestamp, feedID }) => this.fetch('/api/v1/reports', {
     feedID,
     timestamp
-  })
+  }).then(SingleReport.fromAPIResponse)
 
   fetchFeeds = ({ timestamp, feedIDs }) => this.fetch('/api/v1/reports/bulk', {
     feedIDs: feedIDs.join(','),
     timestamp
   })
 
-  subscribeToFeed = ({ feedID }) => this.openSocket('/api/v1/reports', {
-    feedID,
+  subscribeToFeed = ({ feedIDs }) => this.openSocket('/api/v1/ws', {
+    feedIDs: feedIDs.join(','),
     timestamp: '1694212245' // sockets shouldn't need this, right?
   })
 
@@ -46,7 +48,7 @@ export default class LOLSDK {
   }
 
   async openSocket (path, params = {}) {
-    const url = new URL(path, `wss://${this.hostname}`)
+    const url = new URL(path, `wss://${this.wsHostname}`)
     url.search = querystring.stringify(params).toString()
     this.log('Opening WebSocket to', url.toString())
     const headers = generateHeaders('GET', path, url.search, this.clientID, this.clientSecret)
@@ -60,12 +62,37 @@ export default class LOLSDK {
 }
 
 export class SingleReport {
-  constructor(feedID, validFromTimestamp, observationsTimestamp, fullReport) {
+
+  static fromAPIResponse = ({
+    report: {
+      feedID,
+      validFromTimestamp,
+      observationsTimestamp,
+      fullReport
+    }
+  }) => {
+    return new this({
+      feedID,
+      validFromTimestamp,
+      observationsTimestamp,
+      fullReport: FullReport.fromBase64(fullReport)
+    })
+  }
+
+  constructor({ feedID, validFromTimestamp, observationsTimestamp, fullReport }) {
     this.feedID = feedID;
     this.validFromTimestamp = validFromTimestamp;
     this.observationsTimestamp = observationsTimestamp;
     this.fullReport = fullReport;
   }
+}
+
+export class FullReport {
+
+  static fromBase64 = blob => {}
+
+  static fromHex = hex => {}
+
 }
 
 export class SingleReportResponse {
