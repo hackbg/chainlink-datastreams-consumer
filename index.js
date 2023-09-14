@@ -106,7 +106,7 @@ export default class LOLSDK extends EventEmitter {
       } else if (ws.readyState === WebSocket.OPEN) {
         ws.close()
       }
-      delete this.ws
+      this.ws = null
     }
   }
 
@@ -161,6 +161,7 @@ export default class LOLSDK extends EventEmitter {
         })
         if (feeds.size < 1) {
           if (this.ws) this.disconnect()
+          return resolve()
         }
         if (feeds.size > 0) {
           const path = '/api/v1/ws'
