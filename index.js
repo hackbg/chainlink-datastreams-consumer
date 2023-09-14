@@ -17,7 +17,7 @@ class EventEmitter {
 
   off = (event, callback) => {
     if (this.listeners[event]) {
-      this.listeners[event].remove(callback)
+      this.listeners[event].delete(callback)
     }
   }
 
@@ -31,9 +31,10 @@ class EventEmitter {
 
 }
 
-export default class LOLSDK {
+export default class LOLSDK extends EventEmitter {
 
   constructor ({ hostname, wsHostname, clientID, clientSecret, feeds } = {}) {
+    super()
     Object.assign(this, { hostname, wsHostname, clientID })
     this.setClientSecret(clientSecret)
     this.setConnectedFeeds(feeds)
@@ -54,27 +55,6 @@ export default class LOLSDK {
     })
   }
 
-  setConnectedFeeds (feeds) {
-    const readOnly = () => { throw new Error('this set is read-only; clone it to mutate') }
-    feeds = feeds || []
-    feeds = Object.assign(new Set(feeds), {
-      add: readOnly,
-      delete: readOnly,
-      clear: readOnly 
-    })
-    Object.defineProperty(this, 'feeds', {
-      enumerable: true,
-      configurable: true,
-      get () {
-        return feeds
-      },
-      set (feeds) {
-        this.setConnectedFeeds()
-        return feeds
-      }
-    })
-  }
-
   fetchFeed = ({ timestamp, feed }) => this.fetch('/api/v1/reports', {
     timestamp, feedID: feed,
   }).then(
@@ -87,18 +67,6 @@ export default class LOLSDK {
     Report.fromBulkAPIResponse
   )
 
-  subscribeToFeeds = ({ feeds }) => new Promise((resolve, reject)=>{
-    const socket = new Socket(this, { feedIDs: feeds.join(',') })
-    const onerror = error => reject(error) && unbind()
-    const onopen = () => resolve(socket) && unbind()
-    const unbind = () => {
-      socket.ws.off('error', onerror)
-      socket.ws.off('open', onopen)
-    }
-    socket.ws.on('error', onerror)
-    socket.ws.on('open', onopen)
-  })
-
   async fetch (path, params = {}) {
     const url = new URL(path, `https://${this.hostname}`)
     url.search = new URLSearchParams(params).toString()
@@ -109,51 +77,27 @@ export default class LOLSDK {
   }
 
   generateHeaders (method, path, search, timestamp = +new Date()) {
+    if (!search.startsWith('?')) search = `?${search}`
+    const signed = [
+      method,
+      `${path}${search}`,
+      base16.encode(sha256.create().update('').digest()).toLowerCase(),
+      this.clientID,
+      String(timestamp)
+    ]
     return {
       'Authorization': this.clientID,
       'X-Authorization-Timestamp': timestamp.toString(),
       'X-Authorization-Signature-SHA256': base16.encode(
-        hmac(sha256, encoder.encode(this.clientSecret), [
-          method,
-          `${path}${search}`,
-          base16.encode(sha256.create().update('').digest()).toLowerCase(),
-          this.clientID,
-          timestamp
-        ].join(' '))
+        hmac(sha256, encoder.encode(this.clientSecret), signed.join(' '))
       ).toLowerCase()
     }
-  }
-
-}
-
-export class Socket extends EventEmitter {
-
-  constructor (sdk, params) {
-    super()
-    this.sdk = sdk
-    const path = '/api/v1/ws'
-    const url = Object.assign(new URL(path, `wss://${sdk.wsHostname}`), {
-      search: new URLSearchParams(params).toString()
-    })
-    const headers = sdk.generateHeaders('GET', path, url.search)
-    this.connect(url, headers)
-  }
-
-  connect (url, headers) {
-    if (this.ws) this.disconnect()
-    this.ws = new WebSocket(url.toString(), { headers })
-    this.ws.on('message', this.decodeAndEmit)
   }
 
   disconnect = () => {
     this.ws.off('message', this.decodeAndEmit)
     this.ws.close()
-  }
-
-  subscribeTo = async feeds => {
-  }
-
-  unsubscribeFrom = async feeds => {
+    delete this.ws
   }
 
   decodeAndEmit = message => {
@@ -164,7 +108,79 @@ export class Socket extends EventEmitter {
     }
   }
 
+  subscribeTo = feeds => {
+    if (typeof feeds === 'string') feeds = [feeds]
+    for (const feed of new Set(feeds)) {
+      if (!this.feeds.has(feed)) {
+        return this.setConnectedFeeds([...this.feeds, feeds])
+      }
+    }
+  }
+
+  unsubscribeFrom = feeds => {
+    if (typeof feeds === 'string') feeds = [feeds]
+    let changed = false
+    const updatedFeeds = new Set(this.feeds)
+    for (const feed of new Set(feeds)) {
+      if (updatedFeeds.has(feed)) {
+        updatedFeeds.delete(feed)
+        changed = true
+      }
+    }
+    if (changed) {
+      return this.setConnectedFeeds(updatedFeeds)
+    }
+  }
+
+  setConnectedFeeds (feeds) {
+    return new Promise((resolve, reject)=>{
+      feeds = feeds || []
+      const readOnly = () => { throw new Error('this set is read-only; clone it to mutate') }
+      feeds = Object.assign(new Set(feeds), { add: readOnly, delete: readOnly, clear: readOnly  })
+      if (!this.feeds || !compareSets(this.feeds, feeds)) {
+        Object.defineProperty(this, 'feeds', {
+          enumerable: true,
+          configurable: true,
+          get () {
+            return feeds
+          },
+          set (feeds) {
+            this.setConnectedFeeds(feeds)
+            return feeds
+          }
+        })
+        if (feeds.size < 1) {
+          if (this.ws) this.disconnect()
+        }
+        if (feeds.size > 0) {
+          const path = '/api/v1/ws'
+          const search = new URLSearchParams({ feedIDs: [...feeds].join(',') }).toString()
+          const url = Object.assign(new URL(path, `wss://${this.wsHostname}`), { search })
+          const headers = this.generateHeaders('GET', path, search)
+          if (this.ws) this.disconnect()
+          const ws = this.ws = new WebSocket(url.toString(), { headers })
+          const onerror = error => {
+            unbind()
+            reject(error)
+          }
+          const onopen = () => {
+            unbind()
+            resolve(this.ws)
+          }
+          const unbind = () => {
+            ws.off('error', onerror)
+            ws.off('open', onopen)
+          }
+          ws.on('error', onerror)
+          ws.on('open', onopen)
+          ws.on('message', this.decodeAndEmit)
+        }
+      }
+    })
+  }
 }
+
+const compareSets = (xs, ys) => xs.size === ys.size && [...xs].every((x) => ys.has(x));
 
 export class Report {
 
