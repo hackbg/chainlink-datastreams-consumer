@@ -6,22 +6,73 @@ import { base16, bytes } from '@scure/base'
 
 const encoder = new TextEncoder()
 
+class EventEmitter {
+
+  listeners = {}
+
+  on = (event, callback) => {
+    this.listeners[event] ??= new Set()
+    this.listeners[event].add(callback)
+  }
+
+  off = (event, callback) => {
+    if (this.listeners[event]) {
+      this.listeners[event].remove(callback)
+    }
+  }
+
+  once = (event, callback) => {
+    const onceCallback = (...args) => {
+      callback(...args)
+      this.off(event, onceCallback)
+    }
+    this.on(event, onceCallback)
+  }
+
+}
+
 export default class LOLSDK {
 
-  constructor ({ hostname, wsHostname, clientID, clientSecret } = {}) {
-
+  constructor ({ hostname, wsHostname, clientID, clientSecret, feeds } = {}) {
     Object.assign(this, { hostname, wsHostname, clientID })
+    this.setClientSecret(clientSecret)
+    this.setConnectedFeeds(feeds)
+  }
 
-    // Set and hide secret
-    const setSecret = secret => Object.defineProperty(this, 'clientSecret', {
+  // Set and hide secret
+  setClientSecret (secret) {
+    Object.defineProperty(this, 'clientSecret', {
       enumerable: true,
       configurable: true,
-      get () { return secret },
-      set (secret) { setSecret(secret); return secret }
+      get () {
+        return secret
+      },
+      set (secret) {
+        this.setClientSecret(secret)
+        return secret
+      }
     })
+  }
 
-    setSecret(clientSecret)
-
+  setConnectedFeeds (feeds) {
+    const readOnly = () => { throw new Error('this set is read-only; clone it to mutate') }
+    feeds = feeds || []
+    feeds = Object.assign(new Set(feeds), {
+      add: readOnly,
+      delete: readOnly,
+      clear: readOnly 
+    })
+    Object.defineProperty(this, 'feeds', {
+      enumerable: true,
+      configurable: true,
+      get () {
+        return feeds
+      },
+      set (feeds) {
+        this.setConnectedFeeds()
+        return feeds
+      }
+    })
   }
 
   fetchFeed = ({ timestamp, feed }) => this.fetch('/api/v1/reports', {
@@ -75,16 +126,16 @@ export default class LOLSDK {
 
 }
 
-export class Socket {
+export class Socket extends EventEmitter {
 
   constructor (sdk, params) {
+    super()
     this.sdk = sdk
     const path = '/api/v1/ws'
     const url = Object.assign(new URL(path, `wss://${sdk.wsHostname}`), {
       search: new URLSearchParams(params).toString()
     })
     const headers = sdk.generateHeaders('GET', path, url.search)
-    this.listeners = {}
     this.connect(url, headers)
   }
 
@@ -103,25 +154,6 @@ export class Socket {
   }
 
   unsubscribeFrom = async feeds => {
-  }
-
-  on = (event, callback) => {
-    this.listeners[event] ??= new Set()
-    this.listeners[event].add(callback)
-  }
-
-  off = (event, callback) => {
-    if (this.listeners[event]) {
-      this.listeners[event].remove(callback)
-    }
-  }
-
-  once = (event, callback) => {
-    const onceCallback = (...args) => {
-      callback(...args)
-      this.off(event, onceCallback)
-    }
-    this.on(event, onceCallback)
   }
 
   decodeAndEmit = message => {
@@ -264,6 +296,8 @@ export class Report {
       validFromTimestamp, observationsTimestamp, reportContext, rawRs, rawSs, rawVs,
     })
     Object.defineProperty(this, 'version', {
+      enumerable: false,
+      configurable: false,
       get () { return version }
     })
     for (const {name} of Report.reportBlobAbiSchema[this.version]) {
