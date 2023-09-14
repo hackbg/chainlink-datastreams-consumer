@@ -36,8 +36,16 @@ export default class LOLSDK {
     Report.fromBulkAPIResponse
   )
 
-  subscribeToFeeds = ({ feeds }) => this.openSocket('/api/v1/ws', {
-    feedIDs: feeds.join(','),
+  subscribeToFeeds = ({ feeds }) => new Promise((resolve, reject)=>{
+    const socket = new Socket(this, { feedIDs: feeds.join(',') })
+    const onerror = error => reject(error) && unbind()
+    const onopen = () => resolve(socket) && unbind()
+    const unbind = () => {
+      socket.ws.off('error', onerror)
+      socket.ws.off('open', onopen)
+    }
+    socket.ws.on('error', onerror)
+    socket.ws.on('open', onopen)
   })
 
   async fetch (path, params = {}) {
@@ -47,16 +55,6 @@ export default class LOLSDK {
     const response = await fetch(url, { headers });
     const data = await response.json()
     return data
-  }
-
-  async openSocket (path, params = {}) {
-    const url = new URL(path, `wss://${this.wsHostname}`)
-    url.search = new URLSearchParams(params).toString()
-    return new Promise((resolve, reject)=>{
-      const socket = new Socket(url.toString(), this.generateHeaders('GET', path, url.search))
-      socket.ws.on('error', error => reject(error))
-      socket.ws.on('open', () => resolve(socket))
-    })
   }
 
   generateHeaders (method, path, search, timestamp = +new Date()) {
@@ -79,13 +77,24 @@ export default class LOLSDK {
 
 export class Socket {
 
-  constructor (url, headers) {
-    this.ws = new WebSocket(url.toString(), { headers })
-    this.ws.on('message', this.decodeAndEmit)
+  constructor (sdk, params) {
+    this.sdk = sdk
+    const path = '/api/v1/ws'
+    const url = Object.assign(new URL(path, `wss://${sdk.wsHostname}`), {
+      search: new URLSearchParams(params).toString()
+    })
+    const headers = sdk.generateHeaders('GET', path, url.search)
     this.listeners = {}
+    this.connect(url, headers)
   }
 
-  close = () => {
+  connect (url, headers) {
+    if (this.ws) this.disconnect()
+    this.ws = new WebSocket(url.toString(), { headers })
+    this.ws.on('message', this.decodeAndEmit)
+  }
+
+  disconnect = () => {
     this.ws.off('message', this.decodeAndEmit)
     this.ws.close()
   }
