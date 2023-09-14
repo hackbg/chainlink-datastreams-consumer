@@ -69,7 +69,7 @@ Use the `fetchFeeds` method to pull the data from multiple feeds for a given poi
 This asynchronously returns a `Record<FeedId, Report>`.
 
 ```javascript
-const reports = await new ChainlinkLowLatencySDK(config).fetchFeeds({
+const reports = await api.fetchFeeds({
   timestamp: '1694212245',
   feeds: [
     '0x00023496426b520583ae20a66d80484e0fc18544866a5b0bfee15ec771963274',
