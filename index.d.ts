@@ -18,4 +18,6 @@ export default class LOLSDK {
   unsubscribeFrom (feeds: string|string[]): Promise<WebSocket|null>
 
   disconnect (): void
+
+  feeds: Set<string>
 }

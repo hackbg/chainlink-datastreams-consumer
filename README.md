@@ -44,6 +44,12 @@ await api.unsubscribeFrom([
 ])
 ```
 
+The underlying WebSocket is automatically closed and reopened when the
+list of feeds changes; when there are 0 feeds, it remains closed.
+
+The IDs of currently subscribed feeds are available on the `feeds`
+property, as a read-only `Set`.
+
 ## Fetching data from feeds
 
 The SDK can also pull data over HTTP.
