@@ -1,5 +1,4 @@
 import * as crypto from 'node:crypto'
-import * as assert from 'node:assert'
 
 import { WebSocket } from 'ws'
 import * as Base64 from 'js-base64'
