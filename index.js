@@ -101,7 +101,7 @@ export class Report {
     const reports = {}
     for (let report of response.reports) {
       report = this.fromAPIResponse({ report })
-      reports[report.feedID] = report
+      reports[report.feedId] = report
     }
     return reports
   }
@@ -219,7 +219,6 @@ export class Report {
   }) {
     Object.defineProperty(this, 'version', { get () { return version }})
     Object.assign(this, {
-      feedID,
       validFromTimestamp,
       observationsTimestamp,
       reportContext,
