@@ -8,6 +8,8 @@ import * as Base64 from 'js-base64'
 import { decodeAbiParameters } from 'viem'
 import { AbiCoder } from 'ethers'
 
+import * as Data from './data.js'
+
 export default class LOLSDK {
 
   constructor ({
@@ -66,35 +68,6 @@ export default class LOLSDK {
 
 }
 
-export class SingleReport {
-
-  static fromAPIResponse = ({
-    report: {
-      feedID,
-      validFromTimestamp,
-      observationsTimestamp,
-      fullReport
-    }
-  }) => {
-    return new this({
-      feedID,
-      validFromTimestamp,
-      observationsTimestamp,
-      fullReport: FullReport.fromBase64(fullReport)
-    })
-  }
-
-  constructor({ feedID, validFromTimestamp, observationsTimestamp, fullReport }) {
-    this.feedID = feedID;
-    this.validFromTimestamp = validFromTimestamp;
-    this.observationsTimestamp = observationsTimestamp;
-    this.fullReport = fullReport;
-  }
-}
-
-const base64toHex = x =>
-  x.map((b) => b.toString(16).padStart(2, "0")).join("")
-
 const decodeBase64ABIResponse = (schema, data) =>
   decodeABIResponse(schema, Base64.toUint8Array(data))
 
@@ -112,13 +85,29 @@ const decodeABIResponse = (schema, data) => {
   return result
 }
 
+export class SingleReport {
+
+  static fromAPIResponse = ({
+    report: { feedID, validFromTimestamp, observationsTimestamp, fullReport }
+  }) => {
+    return new this({
+      feedID,
+      validFromTimestamp,
+      observationsTimestamp,
+      fullReport: FullReport.fromBase64(fullReport)
+    })
+  }
+
+  constructor ({ feedID, validFromTimestamp, observationsTimestamp, fullReport }) {
+    this.feedID = feedID;
+    this.validFromTimestamp = validFromTimestamp;
+    this.observationsTimestamp = observationsTimestamp;
+    this.fullReport = fullReport;
+  }
+
+}
+
 export class FullReport {
-
-  static fromBase64 = base64String =>
-    new this(decodeBase64ABIResponse(this.abiSchema, base64String))
-
-  static fromHex = base64String =>
-    new this(decodeABIResponse(this.abiSchema, base64String))
 
   static abiSchema = [
     {name: "reportContext", type: "bytes32[3]"},
@@ -128,6 +117,18 @@ export class FullReport {
     {name: "rawVs",         type: "bytes32"},
   ]
 
+  static fromBase64 = base64String => {
+    const decoded = decodeBase64ABIResponse(this.abiSchema, base64String)
+    decoded.reportBlob = ReportBlob.fromHex(decoded.reportBlob)
+    return new this(decoded)
+  }
+
+  static fromHex = base64String => {
+    const decoded = decodeABIResponse(this.abiSchema, base64String)
+    decoded.reportBlob = ReportBlob.fromHex(decoded.reportBlob)
+    new this(decoded)
+  }
+
   constructor ({
     reportContext, reportBlob, rawRs, rawSs, rawVs
   }) {
@@ -135,6 +136,47 @@ export class FullReport {
       reportContext, reportBlob, rawRs, rawSs, rawVs
     })
   }
+
+}
+
+export class ReportBlob {
+
+  static abiSchema = {
+    v1: [
+      {name: "feedId",                type: "bytes32"},
+      {name: "observationsTimestamp", type: "uint32"},
+      {name: "benchmarkPrice",        type: "int192"},
+      {name: "bid",                   type: "int192"},
+      {name: "ask",                   type: "int192"},
+      {name: "currentBlockNum",       type: "uint64"},
+      {name: "currentBlockHash",      type: "bytes32"},
+      {name: "validFromBlockNum",     type: "uint64"},
+      {name: "currentBlockTimestamp", type: "uint64"},
+    ],
+    v2: [
+      {name: "feedId",                type: "bytes32"},
+      {name: "validFromTimestamp",    type: "uint32"},
+      {name: "observationsTimestamp", type: "uint32"},
+      {name: "nativeFee",             type: "uint192"},
+      {name: "linkFee",               type: "uint192"},
+      {name: "expiresAt",             type: "uint32"},
+      {name: "benchmarkPrice",        type: "int192"},
+    ],
+    v3: [
+      {name: "feedId",                type: "bytes32"},
+      {name: "validFromTimestamp",    type: "uint32"},
+      {name: "observationsTimestamp", type: "uint32"},
+      {name: "nativeFee",             type: "uint192"},
+      {name: "linkFee",               type: "uint192"},
+      {name: "expiresAt",             type: "uint32"},
+      {name: "benchmarkPrice",        type: "int192"},
+      {name: "bid",                   type: "int192"},
+      {name: "ask",                   type: "int192"},
+    ]
+  }
+
+  static fromHex = base64String =>
+    new this(decodeABIResponse(this.abiSchema, base64String))
 
 }
 
