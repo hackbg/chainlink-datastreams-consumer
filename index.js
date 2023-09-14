@@ -29,7 +29,10 @@ export default class LOLSDK {
     timestamp
   })
 
-  subscribeToFeed = ({ feedID }) => this.openSocket(/* TODO */)
+  subscribeToFeed = ({ feedID }) => this.openSocket('/api/v1/reports', {
+    feedID,
+    timestamp: '1694212245' // sockets shouldn't need this, right?
+  })
 
   async fetch (path, params = {}) {
     const url = new URL(path, `https://${this.hostname}`)
@@ -43,6 +46,19 @@ export default class LOLSDK {
   }
 
   async openSocket (path, params = {}) {
+    const url = new URL(path, `wss://${this.hostname}`)
+    url.search = querystring.stringify(params).toString()
+    this.log('Opening WebSocket to', url.toString())
+    const headers = generateHeaders('GET', path, url.search, this.clientID, this.clientSecret)
+    return new Promise((resolve, reject)=>{
+      const ws = new WebSocket(url.toString(), { headers })
+      ws.on('error', error => {
+        reject(error)
+      })
+      ws.on('open', () => {
+        resolve(ws)
+      })
+    })
     //export function openWebSocketSingleFeed({
       //hostname   = BASE_URL,
       //clientId   = CLIENT_ID,
@@ -51,25 +67,6 @@ export default class LOLSDK {
       //feedID     = '0x0002F18A75A7750194A6476C9AB6D51276952471BD90404904211A9D47F34E64',
       //timestamp  = +new Date()//'1000000'
     //} = {}) {
-      //const url = new URL(path, `wss://${hostname}`)
-      //url.search = querystring.stringify({ feedID, timestamp: '1694212245',  })
-      //return new Promise((resolve, reject)=>{
-        //let ws
-        //try {
-          //ws = new WebSocket(url.toString(), {
-            //headers: generateHeaders('GET', path, url.search, clientId, userSecret, timestamp)
-          //})
-        //} catch (e) {
-          //console.error({e})
-          //reject(e)
-        //}
-        //ws.on('error', error => {
-          //reject(error)
-        //})
-        //ws.on('open', () => {
-          //resolve(ws)
-        //})
-      //})
     //}
   }
 
