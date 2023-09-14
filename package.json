@@ -1,1 +1,12 @@
-{"dependencies":{"ws":"^8.14.1"}}
+{
+  "name": "@hackbg/lolsdk",
+  "description": "Chainlink Low Latency SDK",
+  "type": "module",
+  "main": "index.js",
+  "dependencies": {
+    "ws":"^8.14.1"
+  },
+  "scripts": {
+    "test": "node test.js"
+  }
+}

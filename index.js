@@ -1,22 +1,3 @@
-import * as crypto      from 'node:crypto'
-import * as https       from 'node:https'
-import * as querystring from 'node:querystring'
-import { WebSocket } from 'ws'
-
-const CLIENT_ID     = '16678a93-e5a2-424d-98da-47793460bc4d';
-const CLIENT_SECRET = 'HX7ALWUkf8s4faD52pNekYMfAzhgHnKPvwVFdyg26SQ2FQ2VMv4gkvFyLs7MXk5BeJ56gwhb5BsN52s6y95daXCrMsNsmmnQJSnjg2ejjFCbXcmHSTyunJhjKyczaCAP';
-const BASE_URL      = "api.testnet-dataengine.chain.link";
-
-const path     = '/api/v1/reports';
-const bulkPath = '/api/v1/reports/bulk';
-
-fetchSingleReportSingleFeed();
-
-//fetchSingleReportManyFeeds();
-
-//openWebSocketSingleFeed().then(ws=>{
-  //ws.on('message', message => console.log({message}))
-//})
 
 class SingleReport {
   constructor(feedID, validFromTimestamp, observationsTimestamp, fullReport) {
@@ -57,7 +38,7 @@ function generateHeaders(method, path, search, clientId, userSecret, timestamp =
   return header;
 }
 
-async function fetchSingleReportSingleFeed({
+export async function fetchSingleReportSingleFeed({
   hostname   = BASE_URL,
   clientId   = CLIENT_ID,
   userSecret = CLIENT_SECRET,
@@ -77,8 +58,19 @@ async function fetchSingleReportSingleFeed({
   return data
 }
 
+import * as crypto      from 'node:crypto'
+import * as https       from 'node:https'
+import * as querystring from 'node:querystring'
 
-function openWebSocketSingleFeed({
+import { WebSocket } from 'ws'
+const CLIENT_ID     = '16678a93-e5a2-424d-98da-47793460bc4d';
+const CLIENT_SECRET = 'HX7ALWUkf8s4faD52pNekYMfAzhgHnKPvwVFdyg26SQ2FQ2VMv4gkvFyLs7MXk5BeJ56gwhb5BsN52s6y95daXCrMsNsmmnQJSnjg2ejjFCbXcmHSTyunJhjKyczaCAP';
+const BASE_URL      = "api.testnet-dataengine.chain.link";
+
+const path     = '/api/v1/reports';
+const bulkPath = '/api/v1/reports/bulk';
+
+export function openWebSocketSingleFeed({
   hostname   = BASE_URL,
   clientId   = CLIENT_ID,
   userSecret = CLIENT_SECRET,
@@ -107,7 +99,7 @@ function openWebSocketSingleFeed({
   })
 }
 
-function fetchSingleReportManyFeeds() {
+export function fetchSingleReportManyFeeds() {
   const clientId = CLIENT_ID;
   const userSecret = CLIENT_SECRET;
   const feedIds = [
