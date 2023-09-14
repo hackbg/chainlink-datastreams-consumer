@@ -1,7 +1,12 @@
-import { WebSocket } from 'ws'
 import * as crypto      from 'node:crypto'
 import * as https       from 'node:https'
 import * as querystring from 'node:querystring'
+import * as assert      from 'node:assert'
+
+import { WebSocket } from 'ws'
+import * as Base64 from 'js-base64'
+import { decodeAbiParameters } from 'viem'
+import { AbiCoder } from 'ethers'
 
 export default class LOLSDK {
 
@@ -87,11 +92,49 @@ export class SingleReport {
   }
 }
 
+const base64toHex = x =>
+  x.map((b) => b.toString(16).padStart(2, "0")).join("")
+
+const decodeBase64ABIResponse = (schema, data) =>
+  decodeABIResponse(schema, Base64.toUint8Array(data))
+
+const decodeABIResponse = (schema, data) => {
+  const decoded = AbiCoder.defaultAbiCoder().decode(schema, data)
+  assert.equal(
+    schema.length,
+    decoded.length,
+    `length of schema (${schema.length}) and decoded data (${decoded.length}) should be equal`
+  )
+  const result = {}
+  for (const index in schema) {
+    result[schema[index].name] = decoded[index]
+  }
+  return result
+}
+
 export class FullReport {
 
-  static fromBase64 = blob => {}
+  static fromBase64 = base64String =>
+    new this(decodeBase64ABIResponse(this.abiSchema, base64String))
 
-  static fromHex = hex => {}
+  static fromHex = base64String =>
+    new this(decodeABIResponse(this.abiSchema, base64String))
+
+  static abiSchema = [
+    {name: "reportContext", type: "bytes32[3]"},
+    {name: "reportBlob",    type: "bytes"},
+    {name: "rawRs",         type: "bytes32[]"},
+    {name: "rawSs",         type: "bytes32[]"},
+    {name: "rawVs",         type: "bytes32"},
+  ]
+
+  constructor ({
+    reportContext, reportBlob, rawRs, rawSs, rawVs
+  }) {
+    Object.assign(this, {
+      reportContext, reportBlob, rawRs, rawSs, rawVs
+    })
+  }
 
 }
 
