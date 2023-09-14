@@ -37,7 +37,7 @@ export default class LOLSDK extends EventTarget {
     Report.fromBulkAPIResponse
   )
 
-  subscribeToFeed = ({ feeds }) => this.openSocket('/api/v1/ws', {
+  subscribeToFeeds = ({ feeds }) => this.openSocket('/api/v1/ws', {
     feedIDs: feeds.join(','),
   })
 
@@ -53,11 +53,10 @@ export default class LOLSDK extends EventTarget {
   async openSocket (path, params = {}) {
     const url = new URL(path, `wss://${this.wsHostname}`)
     url.search = new URLSearchParams(params).toString()
-    const headers = this.generateHeaders('GET', path, url.search)
     return new Promise((resolve, reject)=>{
-      const ws = new WebSocket(url.toString(), { headers })
-      ws.on('error', error => reject(error))
-      ws.on('open', () => resolve(ws))
+      const socket = new Socket(url.toString(), this.generateHeaders('GET', path, url.search))
+      socket.ws.on('error', error => reject(error))
+      socket.ws.on('open', () => resolve(socket))
     })
   }
 
@@ -75,6 +74,46 @@ export default class LOLSDK extends EventTarget {
         ].join(' '))
       ).toLowerCase()
     }
+  }
+
+}
+
+export class Socket {
+
+  constructor (url, headers) {
+    this.ws = new WebSocket(url.toString(), { headers })
+    this.ws.on('message', this.decodeAndEmit)
+    this.listeners = {}
+  }
+
+  addEventListener = (event, callback) => {
+    this.listeners[event] ??= new Set()
+    this.listeners[event].add(callback)
+  }
+
+  removeEventListener = (event, callback) => {
+    if (this.listeners[event]) {
+      this.listeners[event].add(callback)
+    }
+  }
+
+  decodeAndEmit = message => {
+    if (this.listeners['report']) {
+      for (const callback of this.listeners['report']) {
+        callback.call(this, Report.fromSocketMessage(message))
+      }
+    }
+  }
+
+  addFeeds = feeds => {
+  }
+
+  removeFeeds = feeds => {
+  }
+
+  close = () => {
+    this.ws.off('message', this.decodeAndEmit)
+    this.ws.close()
   }
 
 }
