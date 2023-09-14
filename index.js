@@ -7,17 +7,17 @@ import { base16, bytes } from '@scure/base'
 
 const encoder = new TextEncoder()
 
-export default class LOLSDK {
+export default class LOLSDK extends EventTarget {
 
   constructor ({
-    log = () => {},
     hostname = "api.testnet-dataengine.chain.link",
     wsHostname = "ws.testnet-dataengine.chain.link",
     clientID = '16678a93-e5a2-424d-98da-47793460bc4d',
-    clientSecret = 'HX7ALWUkf8s4faD52pNekYMfAzhgHnKPvwVFdyg26SQ2FQ2VMv4gkvFyLs7MXk5BeJ56gwhb5BsN52s6y95daXCrMsNsmmnQJSnjg2ejjFCbXcmHSTyunJhjKyczaCAP'
+    clientSecret = 'HX7ALWUkf8s4faD52pNekYMfAzhgHnKPvwVFdyg26SQ2FQ2VMv4gkvFyLs7MXk5BeJ56gwhb5BsN52s6y95daXCrMsNsmmnQJSnjg2ejjFCbXcmHSTyunJhjKyczaCAP',
+    feeds = []
   } = {}) {
+    super()
     Object.assign(this, {
-      log,
       hostname,
       wsHostname,
       clientID,
@@ -26,15 +26,13 @@ export default class LOLSDK {
   }
 
   fetchFeed = ({ timestamp, feedID }) => this.fetch('/api/v1/reports', {
-    feedID,
-    timestamp
+    timestamp, feedID,
   }).then(
     Report.fromAPIResponse
   )
 
   fetchFeeds = ({ timestamp, feedIDs }) => this.fetch('/api/v1/reports/bulk', {
-    feedIDs: feedIDs.join(','),
-    timestamp
+    timestamp, feedIDs: feedIDs.join(','),
   }).then(
     Report.fromBulkAPIResponse
   )
@@ -47,18 +45,15 @@ export default class LOLSDK {
   async fetch (path, params = {}) {
     const url = new URL(path, `https://${this.hostname}`)
     url.search = new URLSearchParams(params).toString()
-    this.log('Fetching', url.toString())
     const headers = this.generateHeaders('GET', path, url.search);
     const response = await fetch(url, { headers });
     const data = await response.json()
-    this.log('Fetched', data)
     return data
   }
 
   async openSocket (path, params = {}) {
     const url = new URL(path, `wss://${this.wsHostname}`)
     url.search = new URLSearchParams(params).toString()
-    this.log('Opening WebSocket to', url.toString())
     const headers = this.generateHeaders('GET', path, url.search)
     return new Promise((resolve, reject)=>{
       const ws = new WebSocket(url.toString(), { headers })
@@ -68,11 +63,12 @@ export default class LOLSDK {
   }
 
   generateHeaders (method, path, search, timestamp = +new Date()) {
-    const hmacString = this.generateHMAC(method, `${path}${search}`, '', timestamp)
     return {
       'Authorization': this.clientID,
       'X-Authorization-Timestamp': timestamp.toString(),
-      'X-Authorization-Signature-SHA256': hmacString,
+      'X-Authorization-Signature-SHA256': this.generateHMAC(
+        method, `${path}${search}`, '', timestamp
+      ),
     }
   }
 

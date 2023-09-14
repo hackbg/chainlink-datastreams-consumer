@@ -10,6 +10,9 @@
     "ws": "^8.14.1"
   },
   "scripts": {
-    "test": "node test.js"
+    "test": "c8 node test.js"
+  },
+  "devDependencies": {
+    "c8": "^8.0.1"
   }
 }
