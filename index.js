@@ -28,16 +28,15 @@ export default class LOLSDK {
     feedID,
     timestamp
   }).then(
-    SingleReport.fromAPIResponse
+    Report.fromAPIResponse
   )
 
   fetchFeeds = ({ timestamp, feedIDs }) => this.fetch('/api/v1/reports/bulk', {
     feedIDs: feedIDs.join(','),
     timestamp
-  }).then(response => {
-    if (response.error) throw new Error(response.error)
-    return response.reports.map(report=>SingleReport.fromAPIResponse({ report }))
-  })
+  }).then(
+    Report.fromBulkAPIResponse
+  )
 
   subscribeToFeed = ({ feedIDs }) => this.openSocket('/api/v1/ws', {
     feedIDs: feedIDs.join(','),
@@ -88,48 +87,61 @@ export default class LOLSDK {
 
 }
 
-export class SingleReport {
+export class Report {
 
   static fromAPIResponse = response => {
     if (response.error) throw new Error(response.error)
-    const {
-      report: { feedID, validFromTimestamp, observationsTimestamp, fullReport }
-    } = response
-    return new this({
-      feedID,
-      validFromTimestamp,
-      observationsTimestamp,
-      fullReport: FullReport.fromBase64(fullReport)
-    })
+    const { report } = response
+    report.fullReport = this.decodeFullReportBase64(report.fullReport)
+    return new this(report)
+  }
+
+  static fromBulkAPIResponse = response => {
+    if (response.error) throw new Error(response.error)
+    const reports = {}
+    for (let report of response.reports) {
+      report = this.fromAPIResponse({ report })
+      reports[report.feedID] = report
+    }
+    return reports
   }
 
   static fromSocketMessage = message => {
     const { report: { feedID, fullReport } } = JSON.parse(message)
-    const report = FullReport.fromHex(fullReport)
-    return report
+    const report = this.decodeFullReportHex(fullReport)
+    return new this({fullReport: report})
   }
 
-  constructor ({ feedID, validFromTimestamp, observationsTimestamp, fullReport }) {
-    Object.assign(this, { feedID, validFromTimestamp, observationsTimestamp, fullReport })
+  static decodeFullReportBase64 = base64String => {
+    const decoded = this.decodeABIResponseBase64(this.fullReportAbiSchema, base64String)
+    decoded.reportBlob = this.decodeReportBlobHex(decoded.reportBlob)
+    return decoded
   }
 
-}
+  static decodeABIResponseBase64 = (schema, data) =>
+    this.decodeABIResponseHex(schema, Base64.toUint8Array(data))
 
-export class FullReport {
-
-  static fromBase64 = base64String => {
-    const decoded = decodeBase64ABIResponse(this.abiSchema, base64String)
-    decoded.reportBlob = ReportBlob.fromHex(decoded.reportBlob)
-    return new this(decoded)
+  static decodeABIResponseHex = (schema, data) => {
+    const decoded = AbiCoder.defaultAbiCoder().decode(schema, data)
+    if (schema.length !== decoded.length) {
+      throw new Error(
+        `length of schema (${schema.length}) and decoded data (${decoded.length}) should be equal`
+      )
+    }
+    const result = {}
+    for (const index in schema) {
+      result[schema[index].name] = decoded[index]
+    }
+    return result
   }
 
-  static fromHex = hexString => {
-    const decoded = decodeABIResponse(this.abiSchema, hexString)
-    decoded.reportBlob = ReportBlob.fromHex(decoded.reportBlob)
-    return new this(decoded)
+  static decodeFullReportHex = hexString => {
+    const decoded = this.decodeABIResponseHex(this.fullReportAbiSchema, hexString)
+    decoded.reportBlob = this.decodeReportBlobHex(decoded.reportBlob)
+    return decoded
   }
 
-  static abiSchema = [
+  static fullReportAbiSchema = [
     {name: "reportContext", type: "bytes32[3]"},
     {name: "reportBlob",    type: "bytes"},
     {name: "rawRs",         type: "bytes32[]"},
@@ -137,47 +149,14 @@ export class FullReport {
     {name: "rawVs",         type: "bytes32"},
   ]
 
-  constructor ({
-    reportContext, reportBlob, rawRs, rawSs, rawVs
-  }) {
-    Object.assign(this, {
-      reportContext, reportBlob, rawRs, rawSs, rawVs
-    })
-  }
-
-}
-
-export class ReportBlob {
-
-  static fromHex = hexString => {
-    const {feedId} = decodeABIResponse([ {name: 'feedId', type: 'bytes32'} ], hexString)
+  static decodeReportBlobHex = hexString => {
+    const {feedId} = this.decodeABIResponseHex([ {name: 'feedId', type: 'bytes32'} ], hexString)
     const version = this.feedIdToVersion(feedId)
-    const decoded = decodeABIResponse(this.abiSchema[version], hexString)
-    return new ReportBlob(version, decoded)
+    const decoded = this.decodeABIResponseHex(this.reportBlobAbiSchema[version], hexString)
+    return { version, decoded }
   }
 
-  static feedIdToVersion = feedId => {
-    if (!(feedId.startsWith('0x') && feedId.length === 66)) {
-      throw Object.assign(new Error(
-        'feed ID must be 32 bytes hex string starting with "0x"'
-      ), {
-        feedId
-      })
-    }
-    if (legacyV1FeedIDs.has(feedId)) {
-      return 'v1'
-    }
-    const decoded = feedId.slice(2).match(/.{1,2}/g).map((byte) => parseInt(byte, 16))
-    const version = new DataView(Uint8Array.from(decoded).buffer).getUint16(0)
-    switch (version) {
-      case 1: return 'v1'
-      case 2: return 'v2'
-      case 3: return 'v3'
-      default: throw new Error(`Unsupported version ${version} from feed ID ${feedId}`)
-    }
-  }
-
-  static abiSchema = {
+  static reportBlobAbiSchema = {
     v1: [
       {name: "feedId",                type: "bytes32"},
       {name: "observationsTimestamp", type: "uint32"},
@@ -211,10 +190,45 @@ export class ReportBlob {
     ]
   }
 
-  constructor (version, data) {
+  static feedIdToVersion = feedId => {
+    if (!(feedId.startsWith('0x') && feedId.length === 66)) {
+      throw Object.assign(new Error(
+        'feed ID must be 32 bytes hex string starting with "0x"'
+      ), {
+        feedId
+      })
+    }
+    if (legacyV1FeedIDs.has(feedId)) {
+      return 'v1'
+    }
+    const decoded = feedId.slice(2).match(/.{1,2}/g).map((byte) => parseInt(byte, 16))
+    const version = new DataView(Uint8Array.from(decoded).buffer).getUint16(0)
+    switch (version) {
+      case 1: return 'v1'
+      case 2: return 'v2'
+      case 3: return 'v3'
+      default: throw new Error(`Unsupported version ${version} from feed ID ${feedId}`)
+    }
+  }
+
+  constructor ({
+    feedID,
+    validFromTimestamp,
+    observationsTimestamp,
+    fullReport: { reportContext, reportBlob: { version, decoded }, rawRs, rawSs, rawVs }
+  }) {
     Object.defineProperty(this, 'version', { get () { return version }})
-    for (const {name} of ReportBlob.abiSchema[version]) {
-      this[name] = data[name]
+    Object.assign(this, {
+      feedID,
+      validFromTimestamp,
+      observationsTimestamp,
+      reportContext,
+      rawRs,
+      rawSs,
+      rawVs,
+    })
+    for (const {name} of Report.reportBlobAbiSchema[this.version]) {
+      this[name] = decoded[name]
     }
   }
 
@@ -222,23 +236,6 @@ export class ReportBlob {
     return this.version
   }
 
-}
-
-const decodeBase64ABIResponse = (schema, data) =>
-  decodeABIResponse(schema, Base64.toUint8Array(data))
-
-const decodeABIResponse = (schema, data) => {
-  const decoded = AbiCoder.defaultAbiCoder().decode(schema, data)
-  assert.equal(
-    schema.length,
-    decoded.length,
-    `length of schema (${schema.length}) and decoded data (${decoded.length}) should be equal`
-  )
-  const result = {}
-  for (const index in schema) {
-    result[schema[index].name] = decoded[index]
-  }
-  return result
 }
 
 export const legacyV1FeedIDs = new Set([
