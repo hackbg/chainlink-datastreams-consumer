@@ -6,7 +6,6 @@
   "dependencies": {
     "ethers": "^6.7.1",
     "js-base64": "^3.7.5",
-    "viem": "^1.10.13",
     "ws": "^8.14.1"
   },
   "scripts": {

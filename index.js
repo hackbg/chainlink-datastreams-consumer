@@ -2,7 +2,6 @@ import * as crypto from 'node:crypto'
 
 import { WebSocket } from 'ws'
 import * as Base64 from 'js-base64'
-import { decodeAbiParameters } from 'viem'
 import { AbiCoder } from 'ethers'
 
 export default class LOLSDK {
