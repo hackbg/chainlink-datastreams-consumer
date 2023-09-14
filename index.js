@@ -209,6 +209,10 @@ export class ReportBlob {
     }
   }
 
+  get [Symbol.toStringTag] () {
+    return this.version
+  }
+
 }
 
 export class SingleReportResponse {
