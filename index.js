@@ -1,8 +1,10 @@
-import * as crypto from 'node:crypto'
-
 import { WebSocket } from 'ws'
 import * as Base64 from 'js-base64'
 import { AbiCoder } from 'ethers'
+
+import { hmac } from '@noble/hashes/hmac'
+import { sha256 } from '@noble/hashes/sha256'
+import { base16 } from '@scure/base'
 
 export default class LOLSDK {
 
@@ -74,13 +76,11 @@ export default class LOLSDK {
   }
 
   generateHMAC (method, path, body, timestamp) {
-    const serverBodyHash = crypto.createHash('sha256').update(body).digest()
-    const serverBodyHashString = `${method} ${path} ${serverBodyHash.toString('hex')} ${this.clientID} ${timestamp}`
+    const serverBodyHash = base16.encode(sha256.create().update(body).digest()).toLowerCase()
+    const serverBodyHashString = `${method} ${path} ${serverBodyHash} ${this.clientID} ${timestamp}`
     console.log(`Generating HMAC from: ${serverBodyHashString}`)
-    const signedMessage = crypto.createHmac('sha256', Buffer.from(this.clientSecret, 'utf8'))
-      .update(serverBodyHashString).digest();
-    const userHmac = signedMessage.toString('hex');
-    return userHmac;
+    const signedMessage = hmac(sha256, Buffer.from(this.clientSecret, 'utf8'), serverBodyHashString)
+    return base16.encode(signedMessage).toLowerCase()
   }
 
 }

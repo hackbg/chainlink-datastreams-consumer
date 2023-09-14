@@ -4,6 +4,8 @@
   "type": "module",
   "main": "index.js",
   "dependencies": {
+    "@noble/hashes": "^1.3.2",
+    "@scure/base": "^1.1.3",
     "ethers": "^6.7.1",
     "js-base64": "^3.7.5",
     "ws": "^8.14.1"
