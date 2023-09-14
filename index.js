@@ -25,20 +25,20 @@ export default class LOLSDK extends EventTarget {
     })
   }
 
-  fetchFeed = ({ timestamp, feedID }) => this.fetch('/api/v1/reports', {
-    timestamp, feedID,
+  fetchFeed = ({ timestamp, feed }) => this.fetch('/api/v1/reports', {
+    timestamp, feedID: feed,
   }).then(
     Report.fromAPIResponse
   )
 
-  fetchFeeds = ({ timestamp, feedIDs }) => this.fetch('/api/v1/reports/bulk', {
-    timestamp, feedIDs: feedIDs.join(','),
+  fetchFeeds = ({ timestamp, feeds }) => this.fetch('/api/v1/reports/bulk', {
+    timestamp, feedIDs: feeds.join(','),
   }).then(
     Report.fromBulkAPIResponse
   )
 
-  subscribeToFeed = ({ feedIDs }) => this.openSocket('/api/v1/ws', {
-    feedIDs: feedIDs.join(','),
+  subscribeToFeed = ({ feeds }) => this.openSocket('/api/v1/ws', {
+    feedIDs: feeds.join(','),
   })
 
   async fetch (path, params = {}) {
