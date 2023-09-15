@@ -20,6 +20,12 @@ export default class LOLSDK {
   disconnect (): void
 
   feeds: Set<string>
+
+  on (event: string, cb: Function): this
+
+  off (event: string, cb: Function): this
+
+  once (event: string, cb: Function): this
 }
 
 export type Report = {
@@ -29,23 +35,23 @@ export type Report = {
 } & (
   {
     version:               'v1'
-    ask:                   bigint
     bid:                   bigint
-    currentBlockHash:      string
+    ask:                   bigint
     currentBlockNum:       bigint
-    currentBlockTimeStamp: bigint
+    currentBlockHash:      string
     validFromBlockNum:     bigint
+    currentBlockTimeStamp: bigint
   } | {
     version:               'v2'
-    expiresAt:             number
-    linkFee:               bigint
     nativeFee:             bigint
+    linkFee:               bigint
+    expiresAt:             number
   } | {
     version:               'v3'
-    ask:                   bigint
-    bid:                   bigint
-    expiresAt:             number
-    linkFee:               bigint
     nativeFee:             bigint
+    linkFee:               bigint
+    expiresAt:             number
+    bid:                   bigint
+    ask:                   bigint
   }
 )
