@@ -1,10 +1,12 @@
-import { WebSocket } from 'ws'
+import { WebSocket as _WebSocket } from 'ws'
 import { AbiCoder } from 'ethers'
 import { hmac } from '@noble/hashes/hmac'
 import { sha256 } from '@noble/hashes/sha256'
 import { base16, bytes } from '@scure/base'
 
 const encoder = new TextEncoder()
+
+const WebSocket = _WebSocket || globalThis.WebSocket
 
 class EventEmitter {
 
