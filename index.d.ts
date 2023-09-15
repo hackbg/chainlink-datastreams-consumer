@@ -21,3 +21,31 @@ export default class LOLSDK {
 
   feeds: Set<string>
 }
+
+export type Report = {
+  feedId:                  string
+  observationsTimestamp:   bigint
+  benchmarkPrice:          bigint
+} & (
+  {
+    version:               'v1'
+    ask:                   bigint
+    bid:                   bigint
+    currentBlockHash:      string
+    currentBlockNum:       bigint
+    currentBlockTimeStamp: bigint
+    validFromBlockNum:     bigint
+  } | {
+    version:               'v2'
+    expiresAt:             number
+    linkFee:               bigint
+    nativeFee:             bigint
+  } | {
+    version:               'v3'
+    ask:                   bigint
+    bid:                   bigint
+    expiresAt:             number
+    linkFee:               bigint
+    nativeFee:             bigint
+  }
+)
