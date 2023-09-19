@@ -11,7 +11,7 @@ export default class LOLSDK {
 
   fetchFeed (args: { timestamp: string|number, feed: string }): Promise<Report>
 
-  fetchFeeds (args: { timestamp: string|number, feeds: string }): Promise<Record<string, Report>>
+  fetchFeeds (args: { timestamp: string|number, feeds: string[] }): Promise<Record<string, Report>>
 
   subscribeTo (feeds: string|string[]): Promise<WebSocket|null>
 
