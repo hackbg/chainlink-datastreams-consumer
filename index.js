@@ -84,6 +84,8 @@ export default class LOLSDK extends EventEmitter {
   }
 
   generateHeaders (method, path, search, timestamp = +new Date()) {
+    if (!this.clientID) throw new Error('clientID not passed to LOLSDK constructor')
+    if (!this.clientSecret) throw new Error('clientSecret not set')
     if (!search.startsWith('?')) search = `?${search}`
     const signed = [
       method,
