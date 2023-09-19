@@ -73,6 +73,7 @@ export default class LOLSDK extends EventEmitter {
   )
 
   async fetch (path, params = {}) {
+    if (!this.hostname) throw new Error('hostname not passed to LOLSDK constructor.')
     const url = new URL(path, `https://${this.hostname}`)
     url.search = new URLSearchParams(params).toString()
     const headers = this.generateHeaders('GET', path, url.search);
@@ -145,6 +146,7 @@ export default class LOLSDK extends EventEmitter {
   }
 
   setConnectedFeeds (feeds) {
+    if (!this.wsHostName) throw new Error('wsHostname not passed to LOLSDK constructor.')
     return new Promise((resolve, reject)=>{
       feeds = feeds || []
       const readOnly = () => { throw new Error('this set is read-only; clone it to mutate') }

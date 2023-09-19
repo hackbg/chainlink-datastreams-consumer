@@ -4,8 +4,8 @@ export default class LOLSDK {
   constructor (args: {
     clientID: string,
     clientSecret: string,
-    hostname: string,
-    wsHostname: string,
+    hostname?: string,
+    wsHostname?: string,
     feeds?: string[]
   })
 
