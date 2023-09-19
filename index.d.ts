@@ -2,8 +2,8 @@ import type { WebSocket } from 'ws'
 
 export default class LOLSDK {
   constructor (args: {
-    clientID: string,
-    clientSecret: string,
+    clientID?: string,
+    clientSecret?: string,
     hostname?: string,
     wsHostname?: string,
     feeds?: string[]

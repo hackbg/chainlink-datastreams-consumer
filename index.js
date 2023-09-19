@@ -40,6 +40,7 @@ export default class LOLSDK extends EventEmitter {
 
   constructor ({ hostname, wsHostname, clientID, clientSecret, feeds } = {}) {
     super()
+    if (!clientID) throw new Error('clientID not passed to LOLSDK constructor/')
     Object.assign(this, { hostname, wsHostname, clientID })
     this.setClientSecret(clientSecret)
     this.setConnectedFeeds(feeds)
@@ -146,7 +147,7 @@ export default class LOLSDK extends EventEmitter {
   }
 
   setConnectedFeeds (feeds) {
-    if (!this.wsHostName) throw new Error('wsHostname not passed to LOLSDK constructor.')
+    if (!this.wsHostname) throw new Error('wsHostname not passed to LOLSDK constructor.')
     return new Promise((resolve, reject)=>{
       feeds = feeds || []
       const readOnly = () => { throw new Error('this set is read-only; clone it to mutate') }
