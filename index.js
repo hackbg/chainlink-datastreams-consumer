@@ -38,9 +38,15 @@ class EventEmitter {
 
 export default class LOLSDK extends EventEmitter {
 
-  constructor ({ hostname, wsHostname, clientID, clientSecret, feeds } = {}) {
+  constructor ({
+    hostname,
+    wsHostname,
+    clientID,
+    clientSecret,
+    feeds
+  } = {}) {
     super()
-    if (!clientID) throw new Error('clientID not passed to LOLSDK constructor/')
+    if (!clientID) throw new Error('Client ID not passed to LOLSDK constructor.')
     Object.assign(this, { hostname, wsHostname, clientID })
     this.setClientSecret(clientSecret)
     this.setConnectedFeeds(feeds)
@@ -48,6 +54,7 @@ export default class LOLSDK extends EventEmitter {
 
   // Set and hide secret
   setClientSecret (secret) {
+    if (!secret) console.warn('Setting empty client secret.')
     Object.defineProperty(this, 'clientSecret', {
       enumerable: true,
       configurable: true,
@@ -74,7 +81,9 @@ export default class LOLSDK extends EventEmitter {
   )
 
   async fetch (path, params = {}) {
-    if (!this.hostname) throw new Error('hostname not passed to LOLSDK constructor.')
+    if (!this.hostname) {
+      throw new Error('Hostname was not passed to LOLSDK constructor.')
+    }
     const url = new URL(path, `https://${this.hostname}`)
     url.search = new URLSearchParams(params).toString()
     const headers = this.generateHeaders('GET', path, url.search);
@@ -84,9 +93,15 @@ export default class LOLSDK extends EventEmitter {
   }
 
   generateHeaders (method, path, search, timestamp = +new Date()) {
-    if (!this.clientID) throw new Error('clientID not passed to LOLSDK constructor')
-    if (!this.clientSecret) throw new Error('clientSecret not set')
-    if (!search.startsWith('?')) search = `?${search}`
+    if (!this.clientID) {
+      throw new Error('Client ID was not passed to LOLSDK constructor')
+    }
+    if (!this.clientSecret) {
+      throw new Error('client secret not set')
+    }
+    if (!search.startsWith('?')) {
+      search = `?${search}`
+    }
     const signed = [
       method,
       `${path}${search}`,
@@ -113,6 +128,8 @@ export default class LOLSDK extends EventEmitter {
         ws.close()
       }
       this.ws = null
+    } else {
+      console.warn('Already disconnected.')
     }
   }
 
@@ -125,7 +142,9 @@ export default class LOLSDK extends EventEmitter {
   }
 
   subscribeTo = feeds => {
-    if (typeof feeds === 'string') feeds = [feeds]
+    if (typeof feeds === 'string') {
+      feeds = [feeds]
+    }
     for (const feed of new Set(feeds)) {
       if (!this.feeds.has(feed)) {
         return this.setConnectedFeeds([...this.feeds, feeds])
@@ -134,7 +153,9 @@ export default class LOLSDK extends EventEmitter {
   }
 
   unsubscribeFrom = feeds => {
-    if (typeof feeds === 'string') feeds = [feeds]
+    if (typeof feeds === 'string') {
+      feeds = [feeds]
+    }
     let changed = false
     const updatedFeeds = new Set(this.feeds)
     for (const feed of new Set(feeds)) {
@@ -149,11 +170,17 @@ export default class LOLSDK extends EventEmitter {
   }
 
   setConnectedFeeds (feeds) {
-    if (!this.wsHostname) throw new Error('wsHostname not passed to LOLSDK constructor.')
+    if (!this.wsHostname) {
+      throw new Error('WebSocket hostname was not passed to LOLSDK constructor.')
+    }
     return new Promise((resolve, reject)=>{
       feeds = feeds || []
-      const readOnly = () => { throw new Error('this set is read-only; clone it to mutate') }
-      feeds = Object.assign(new Set(feeds), { add: readOnly, delete: readOnly, clear: readOnly  })
+      const readOnly = () => {
+        throw new Error('The set of feeds is read-only; clone it to mutate.')
+      }
+      feeds = Object.assign(new Set(feeds), {
+        add: readOnly, delete: readOnly, clear: readOnly
+      })
       if (!this.feeds || !compareSets(this.feeds, feeds)) {
         Object.defineProperty(this, 'feeds', {
           enumerable: true,
