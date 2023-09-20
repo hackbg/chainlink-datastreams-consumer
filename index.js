@@ -209,9 +209,9 @@ export class Report {
       report.fullReport = this.decodeFullReportBase64(report.fullReport)
       return new this(report)
     } catch (error) {
-      throw Object.assign(new Error(`failed to parse API response: ${error.message}`), {
-        response, error
-      })
+      const message = `failed to parse API response: ${error.message}`
+      console.debug('Report.fromAPIResponse error:', { message, response, error })
+      throw Object.assign(new Error(message), { response, error })
     }
   }
 
@@ -225,9 +225,9 @@ export class Report {
       }
       return reports
     } catch (error) {
-      throw Object.assign(new Error(`failed to parse bulk API response: ${error.message}`), {
-        response, error
-      })
+      const message = `failed to parse bulk API response: ${error.message}`
+      console.debug('Report.fromBulkAPIResponse error:', { message, response, error })
+      throw Object.assign(new Error(message), { response, error })
     }
   }
 
@@ -238,9 +238,9 @@ export class Report {
         fullReport: this.decodeFullReportHex(fullReport)
       })
     } catch (error) {
-      throw Object.assign(new Error(`failed to parse socket message: ${error.message}`), {
-        response, error
-      })
+      const message = `failed to parse socket message: ${error.message}`
+      console.debug('Report.fromSocketMessage error:', { message, response, error })
+      throw Object.assign(new Error(message), { response, error })
     }
   }
 
