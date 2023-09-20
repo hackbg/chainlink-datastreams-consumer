@@ -203,26 +203,45 @@ const compareSets = (xs, ys) => xs.size === ys.size && [...xs].every((x) => ys.h
 export class Report {
 
   static fromAPIResponse = response => {
-    if (response.error) throw new Error(response.error)
-    const { report } = response
-    report.fullReport = this.decodeFullReportBase64(report.fullReport)
-    return new this(report)
+    try {
+      if (response.error) throw new Error(response.error)
+      const { report } = response
+      report.fullReport = this.decodeFullReportBase64(report.fullReport)
+      return new this(report)
+    } catch (error) {
+      throw Object.assign(new Error(`failed to parse API response: ${error.message}`), {
+        response, error
+      })
+    }
   }
 
   static fromBulkAPIResponse = response => {
-    if (response.error) throw new Error(response.error)
-    const reports = {}
-    for (let report of response.reports) {
-      report = this.fromAPIResponse({ report })
-      reports[report.feedId] = report
+    try {
+      if (response.error) throw new Error(response.error)
+      const reports = {}
+      for (let report of response.reports) {
+        report = this.fromAPIResponse({ report })
+        reports[report.feedId] = report
+      }
+      return reports
+    } catch (error) {
+      throw Object.assign(new Error(`failed to parse bulk API response: ${error.message}`), {
+        response, error
+      })
     }
-    return reports
   }
 
   static fromSocketMessage = message => {
-    const { report: { feedID, fullReport } } = JSON.parse(message)
-    const report = this.decodeFullReportHex(fullReport)
-    return new this({fullReport: report})
+    try {
+      const { report: { feedID, fullReport } } = JSON.parse(message)
+      return new this({
+        fullReport: this.decodeFullReportHex(fullReport)
+      })
+    } catch (error) {
+      throw Object.assign(new Error(`failed to parse socket message: ${error.message}`), {
+        response, error
+      })
+    }
   }
 
   static decodeFullReportBase64 = base64String => {
