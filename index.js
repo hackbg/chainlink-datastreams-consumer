@@ -233,7 +233,11 @@ export class Report {
     try {
       if (response.error) throw new Error(response.error)
       const { report } = response
-      report.fullReport = this.decodeFullReportBase64(report.fullReport)
+      if (report.fullReport.startsWith('0x')) {
+        report.fullReport = this.decodeFullReportHex(report.fullReport)
+      } else {
+        report.fullReport = this.decodeFullReportBase64(report.fullReport)
+      }
       return new this(report)
     } catch (error) {
       const message = `failed to parse API response: ${error.message}`
