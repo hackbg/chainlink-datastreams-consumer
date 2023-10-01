@@ -2,7 +2,11 @@
 
 ## Installing
 
-Installation instructions will be provided by your Hack.bg Platform Coordinator.
+This package is not published in NPM yet. You can add it to your project like this:
+
+```
+npm i --save git+https://github.com/hackbg/chainlink-low-latency-consumer.git
+```
 
 ## Subscribing to feeds
 
