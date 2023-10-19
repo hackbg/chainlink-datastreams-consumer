@@ -25,7 +25,7 @@ npm i --save git+https://github.com/hackbg/chainlink-datastreams-consumer.git
 Use your authentication credentials to instantiate the default export of the module.
 
 ```javascript
-import ChainlinkDatastreamsConsumer from '@hackbg/lolsdk'
+import ChainlinkDatastreamsConsumer from '@hackbg/chainlink-datastreams-consumer'
 
 const api = new ChainlinkDatastreamsConsumer({
   hostname:     '...',
@@ -69,7 +69,7 @@ The optional `feeds` parameter allows you to connect and subscribe in a single e
 Use the instance's `on`, `once` and `off` methods to set up event handling.
 
 ```javascript
-import ChainlinkDatastreamsConsumer from '@hackbg/lolsdk'
+import ChainlinkDatastreamsConsumer from '@hackbg/chainlink-datastreams-consumer'
 
 const api = new ChainlinkDatastreamsConsumer({
   hostname: '...',
