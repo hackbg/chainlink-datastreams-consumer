@@ -1,4 +1,4 @@
-# Chainlink Low-Latency Consumer
+# Chainlink Data Streams Consumer
 
 This package can authenticate to the Chainlink Data Streams API,
 fetch reports from feeds, and decode them to a format that is
