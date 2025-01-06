@@ -301,7 +301,7 @@ export class Report {
   static decodeFullReportHex = hexString => {
     const decoded = this.decodeABIResponseHex(this.fullReportAbiSchema, hexString)
     decoded.reportBlob = this.decodeReportBlobHex(decoded.reportBlob)
-    return decoded
+    return {...decoded, rawReport: hexString}
   }
 
   static fullReportAbiSchema = [
@@ -375,9 +375,9 @@ export class Report {
   }
 
   constructor ({ feedID, validFromTimestamp, observationsTimestamp, fullReport }) {
-    const { reportContext, reportBlob: { version, decoded }, rawRs, rawSs, rawVs } = fullReport
+    const { reportContext, reportBlob: { version, decoded }, rawRs, rawSs, rawVs, rawReport } = fullReport
     Object.assign(this, {
-      validFromTimestamp, observationsTimestamp, reportContext, rawRs, rawSs, rawVs,
+      validFromTimestamp, observationsTimestamp, reportContext, rawRs, rawSs, rawVs, rawReport
     })
     Object.defineProperty(this, 'version', {
       enumerable: false,
