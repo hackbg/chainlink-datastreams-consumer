@@ -206,7 +206,7 @@ export default class LOLSDK extends EventEmitter {
           const ws = this.ws = new WebSocket(url.toString(), { headers })
           const onerror = error => {
             unbind()
-            reject(error)
+            resolve()
           }
           const onopen = () => {
             unbind()
