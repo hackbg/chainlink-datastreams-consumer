@@ -350,6 +350,16 @@ export class Report {
       {name: "benchmarkPrice",        type: "int192"},
       {name: "bid",                   type: "int192"},
       {name: "ask",                   type: "int192"},
+    ],
+    v4: [
+      {name: "feedId",                type: "bytes32"},
+      {name: "validFromTimestamp",    type: "uint32"},
+      {name: "observationsTimestamp", type: "uint32"},
+      {name: "nativeFee",             type: "uint192"},
+      {name: "linkFee",               type: "uint192"},
+      {name: "expiresAt",             type: "uint32"},
+      {name: "price",                 type: "int192"},
+      {name: "marketStatus",          type: "uint32"},
     ]
   }
 
@@ -370,6 +380,7 @@ export class Report {
       case 1: return 'v1'
       case 2: return 'v2'
       case 3: return 'v3'
+      case 4: return 'v4'
       default: throw new Error(`Unsupported version ${version} from feed ID ${feedId}`)
     }
   }

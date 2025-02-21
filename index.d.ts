@@ -31,7 +31,6 @@ export default class LOLSDK {
 export type Report = {
   feedId:                  string
   observationsTimestamp:   bigint
-  benchmarkPrice:          bigint
 } & (
   {
     version:               'v1'
@@ -41,11 +40,15 @@ export type Report = {
     currentBlockHash:      string
     validFromBlockNum:     bigint
     currentBlockTimeStamp: bigint
+    benchmarkPrice:        bigint
+
   } | {
     version:               'v2'
     nativeFee:             bigint
     linkFee:               bigint
     expiresAt:             number
+    benchmarkPrice:        bigint
+    
   } | {
     version:               'v3'
     nativeFee:             bigint
@@ -53,5 +56,15 @@ export type Report = {
     expiresAt:             number
     bid:                   bigint
     ask:                   bigint
+    benchmarkPrice:        bigint
+    
+  } | {
+    version: 'v4'
+    validFromTimestamp:    bigint
+    nativeFee:             bigint
+    linkFee:               bigint
+    expiresAt:             number
+    price:                 bigint
+    marketStatus:          number
   }
 )
