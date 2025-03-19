@@ -1,6 +1,6 @@
 {
   "name": "@hackbg/chainlink-datastreams-consumer",
-  "description": "Chainlink Low Latency SDK",
+  "description": "Chainlink Data Streams Consumer SDK",
   "type": "module",
   "main": "index.js",
   "types": "index.d.ts",
