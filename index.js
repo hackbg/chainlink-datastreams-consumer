@@ -36,192 +36,202 @@ class EventEmitter {
 
 }
 
-export default class LOLSDK extends EventEmitter {
-
-  constructor ({
-    hostname,
-    wsHostname,
-    clientID,
-    clientSecret,
-    feeds
-  } = {}) {
-    super()
-    if (!clientID) throw new Error('Client ID not passed to LOLSDK constructor.')
-    Object.assign(this, { hostname, wsHostname, clientID })
-    this.setClientSecret(clientSecret)
-    this.setConnectedFeeds(feeds)
+export default class ChainlinkDataStreamsConsumer extends EventEmitter {
+  constructor({ hostname, wsHostname, clientID, clientSecret, feeds } = {}) {
+    super();
+    if (!clientID)
+      throw new Error(
+        'Client ID not passed to ChainlinkDataStreamsConsumer constructor.',
+      );
+    Object.assign(this, { hostname, wsHostname, clientID });
+    this.setClientSecret(clientSecret);
+    this.setConnectedFeeds(feeds);
   }
 
   // Set and hide secret
-  setClientSecret (secret) {
-    if (!secret) console.warn('Setting empty client secret.')
+  setClientSecret(secret) {
+    if (!secret) console.warn('Setting empty client secret.');
     Object.defineProperty(this, 'clientSecret', {
       enumerable: true,
       configurable: true,
-      get () {
-        return secret
+      get() {
+        return secret;
       },
-      set (secret) {
-        this.setClientSecret(secret)
-        return secret
-      }
-    })
+      set(secret) {
+        this.setClientSecret(secret);
+        return secret;
+      },
+    });
   }
 
-  fetchFeed = ({ timestamp, feed }) => this.fetch('/api/v1/reports', {
-    timestamp, feedID: feed,
-  }).then(
-    Report.fromAPIResponse
-  )
+  fetchFeed = ({ timestamp, feed }) =>
+    this.fetch('/api/v1/reports', {
+      timestamp,
+      feedID: feed,
+    }).then(Report.fromAPIResponse);
 
-  fetchFeeds = ({ timestamp, feeds }) => this.fetch('/api/v1/reports/bulk', {
-    timestamp, feedIDs: feeds.join(','),
-  }).then(
-    Report.fromBulkAPIResponse
-  )
+  fetchFeeds = ({ timestamp, feeds }) =>
+    this.fetch('/api/v1/reports/bulk', {
+      timestamp,
+      feedIDs: feeds.join(','),
+    }).then(Report.fromBulkAPIResponse);
 
-  async fetch (path, params = {}) {
+  async fetch(path, params = {}) {
     if (!this.hostname) {
-      throw new Error('Hostname was not passed to LOLSDK constructor.')
+      throw new Error(
+        'Hostname was not passed to ChainlinkDataStreamsConsumer constructor.',
+      );
     }
-    const url = new URL(path, `https://${this.hostname}`)
-    url.search = new URLSearchParams(params).toString()
+    const url = new URL(path, `https://${this.hostname}`);
+    url.search = new URLSearchParams(params).toString();
     const headers = this.generateHeaders('GET', path, url.search);
     const response = await fetch(url, { headers });
-    const data = await response.json()
-    return data
+    const data = await response.json();
+    return data;
   }
 
-  generateHeaders (method, path, search, timestamp = +new Date()) {
+  generateHeaders(method, path, search, timestamp = +new Date()) {
     if (!this.clientID) {
-      throw new Error('Client ID was not passed to LOLSDK constructor')
+      throw new Error(
+        'Client ID was not passed to ChainlinkDataStreamsConsumer constructor',
+      );
     }
     if (!this.clientSecret) {
-      throw new Error('client secret not set')
+      throw new Error('client secret not set');
     }
     if (!search.startsWith('?')) {
-      search = `?${search}`
+      search = `?${search}`;
     }
     const signed = [
       method,
       `${path}${search}`,
       base16.encode(sha256.create().update('').digest()).toLowerCase(),
       this.clientID,
-      String(timestamp)
-    ]
+      String(timestamp),
+    ];
     return {
-      'Authorization': this.clientID,
+      Authorization: this.clientID,
       'X-Authorization-Timestamp': timestamp.toString(),
-      'X-Authorization-Signature-SHA256': base16.encode(
-        hmac(sha256, encoder.encode(this.clientSecret), signed.join(' '))
-      ).toLowerCase()
-    }
+      'X-Authorization-Signature-SHA256': base16
+        .encode(
+          hmac(sha256, encoder.encode(this.clientSecret), signed.join(' ')),
+        )
+        .toLowerCase(),
+    };
   }
 
   disconnect = () => {
-    const { ws } = this
+    const { ws } = this;
     if (ws) {
-      ws.off('message', this.decodeAndEmit)
+      ws.off('message', this.decodeAndEmit);
       if (ws.readyState === WebSocket.CONNECTING) {
-        ws.on('open', () => ws.close())
+        ws.on('open', () => ws.close());
       } else if (ws.readyState === WebSocket.OPEN) {
-        ws.close()
+        ws.close();
       }
-      this.ws = null
+      this.ws = null;
     } else {
-      console.warn('Already disconnected.')
+      console.warn('Already disconnected.');
     }
-  }
+  };
 
-  decodeAndEmit = message => {
+  decodeAndEmit = (message) => {
     if (this.listeners['report']) {
       for (const callback of this.listeners['report']) {
-        callback.call(this, Report.fromSocketMessage(message))
+        callback.call(this, Report.fromSocketMessage(message));
       }
     }
-  }
+  };
 
-  subscribeTo = feeds => {
+  subscribeTo = (feeds) => {
     if (typeof feeds === 'string') {
-      feeds = [feeds]
+      feeds = [feeds];
     }
     for (const feed of new Set(feeds)) {
       if (!this.feeds.has(feed)) {
-        return this.setConnectedFeeds([...this.feeds, feeds])
+        return this.setConnectedFeeds([...this.feeds, feeds]);
       }
     }
-  }
+  };
 
-  unsubscribeFrom = feeds => {
+  unsubscribeFrom = (feeds) => {
     if (typeof feeds === 'string') {
-      feeds = [feeds]
+      feeds = [feeds];
     }
-    let changed = false
-    const updatedFeeds = new Set(this.feeds)
+    let changed = false;
+    const updatedFeeds = new Set(this.feeds);
     for (const feed of new Set(feeds)) {
       if (updatedFeeds.has(feed)) {
-        updatedFeeds.delete(feed)
-        changed = true
+        updatedFeeds.delete(feed);
+        changed = true;
       }
     }
     if (changed) {
-      return this.setConnectedFeeds(updatedFeeds)
+      return this.setConnectedFeeds(updatedFeeds);
     }
-  }
+  };
 
-  setConnectedFeeds (feeds) {
+  setConnectedFeeds(feeds) {
     if (!this.wsHostname) {
-      throw new Error('WebSocket hostname was not passed to LOLSDK constructor.')
+      throw new Error(
+        'WebSocket hostname was not passed to ChainlinkDataStreamsConsumer constructor.',
+      );
     }
-    return new Promise((resolve, reject)=>{
-      feeds = feeds || []
+    return new Promise((resolve, reject) => {
+      feeds = feeds || [];
       const readOnly = () => {
-        throw new Error('The set of feeds is read-only; clone it to mutate.')
-      }
+        throw new Error('The set of feeds is read-only; clone it to mutate.');
+      };
       feeds = Object.assign(new Set(feeds), {
-        add: readOnly, delete: readOnly, clear: readOnly
-      })
+        add: readOnly,
+        delete: readOnly,
+        clear: readOnly,
+      });
       if (!this.feeds || !compareSets(this.feeds, feeds)) {
         Object.defineProperty(this, 'feeds', {
           enumerable: true,
           configurable: true,
-          get () {
-            return feeds
+          get() {
+            return feeds;
           },
-          set (feeds) {
-            this.setConnectedFeeds(feeds)
-            return feeds
-          }
-        })
+          set(feeds) {
+            this.setConnectedFeeds(feeds);
+            return feeds;
+          },
+        });
         if (feeds.size < 1) {
-          if (this.ws) this.disconnect()
-          return resolve()
+          if (this.ws) this.disconnect();
+          return resolve();
         }
         if (feeds.size > 0) {
-          const path = '/api/v1/ws'
-          const search = new URLSearchParams({ feedIDs: [...feeds].join(',') }).toString()
-          const url = Object.assign(new URL(path, `wss://${this.wsHostname}`), { search })
-          const headers = this.generateHeaders('GET', path, search)
-          if (this.ws) this.disconnect()
-          const ws = this.ws = new WebSocket(url.toString(), { headers })
-          const onerror = error => {
-            unbind()
-            resolve()
-          }
+          const path = '/api/v1/ws';
+          const search = new URLSearchParams({
+            feedIDs: [...feeds].join(','),
+          }).toString();
+          const url = Object.assign(new URL(path, `wss://${this.wsHostname}`), {
+            search,
+          });
+          const headers = this.generateHeaders('GET', path, search);
+          if (this.ws) this.disconnect();
+          const ws = (this.ws = new WebSocket(url.toString(), { headers }));
+          const onerror = (error) => {
+            unbind();
+            resolve();
+          };
           const onopen = () => {
-            unbind()
-            resolve(this.ws)
-          }
+            unbind();
+            resolve(this.ws);
+          };
           const unbind = () => {
-            ws.off('error', onerror)
-            ws.off('open', onopen)
-          }
-          ws.on('error', onerror)
-          ws.on('open', onopen)
-          ws.on('message', this.decodeAndEmit)
+            ws.off('error', onerror);
+            ws.off('open', onopen);
+          };
+          ws.on('error', onerror);
+          ws.on('open', onopen);
+          ws.on('message', this.decodeAndEmit);
         }
       }
-    })
+    });
   }
 }
 

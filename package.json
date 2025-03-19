@@ -1,10 +1,10 @@
 {
   "name": "@hackbg/chainlink-datastreams-consumer",
-  "description": "Chainlink Low Latency SDK",
+  "description": "Chainlink Data Streams Consumer SDK",
   "type": "module",
   "main": "index.js",
   "types": "index.d.ts",
-  "version": "1.0.0-rc.1",
+  "version": "1.0.0",
   "license": "BSD-3-Clause-No-Military-License",
   "dependencies": {
     "@noble/hashes": "^1.3.2",
@@ -20,5 +20,6 @@
   "devDependencies": {
     "c8": "^8.0.1",
     "typescript": "^5.2.2"
-  }
+  },
+  "packageManager": "pnpm@10.4.1+sha512.c753b6c3ad7afa13af388fa6d808035a008e30ea9993f58c6663e2bc5ff21679aa834db094987129aa4d488b86df57f7b634981b2f827cdcacc698cc0cfb88af"
 }

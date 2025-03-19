@@ -1,6 +1,6 @@
 import type { WebSocket } from 'ws'
 
-export default class LOLSDK {
+export default class ChainlinkDataStreamsConsumer {
   constructor (args: {
     clientID?: string,
     clientSecret?: string,
