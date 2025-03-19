@@ -14,10 +14,10 @@ through a backend service.
 
 ## Installing
 
-This package is not published in NPM yet. You can add it to your project like this:
+You can add it to your project like this:
 
 ```
-npm i --save git+https://github.com/hackbg/chainlink-datastreams-consumer.git
+npm i @hackbg/chainlink-datastreams-consumer
 ```
 
 ## Connecting
