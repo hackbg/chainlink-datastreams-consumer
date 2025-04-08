@@ -101,18 +101,23 @@ export default class ChainlinkDataStreamsConsumer extends EventEmitter {
     // Validate method (must be a string and a valid HTTP method)
     if (
       typeof method !== 'string' ||
-      !/^(GET|POST|PUT|DELETE|PATCH)$/i.test(method) || method.indexOf(' ') !== -1
+      !/^(GET|POST|PUT|DELETE|PATCH)$/i.test(method) ||
+      method.indexOf(' ') !== -1
     ) {
       throw new Error('Invalid HTTP method provided.');
     }
 
     // Validate path (must be a non-empty string)
-    if (typeof path !== 'string' || path.trim() === '' || path.indexOf(' ') !== -1 ) {
+    if (
+      typeof path !== 'string' ||
+      path.trim() === '' ||
+      path.indexOf(' ') !== -1
+    ) {
       throw new Error('Invalid path provided.');
     }
 
     // Validate search (must be a string starting with '?' or an empty string)
-    if (typeof search !== 'string' ||  search.indexOf(' ') !== -1) {
+    if (typeof search !== 'string' || search.indexOf(' ') !== -1) {
       throw new Error('Search parameter must be a string.');
     }
 
@@ -131,6 +136,7 @@ export default class ChainlinkDataStreamsConsumer extends EventEmitter {
     search = search.trim();
 
     // Prepare the signed string
+    // The empty string in the sha256.create().update('') is the request body, which is empty in this request
     const signed = [
       method,
       `${path}${search}`,
