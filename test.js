@@ -15,31 +15,55 @@ const feedIds = [
   '0x00037da06d56d083fe599397a4769a042d63aa73dc4ef57709d31e9971a5b439', // BTC/USD
   '0x000359843a543ee2fe414dc14c7e7920ef10f4372990b79d6361cdc0dd1ba782', // ETH/USD
 ];
-  
-describe('ChainlinkDataStreamsConsumer', function () {
-  
 
+describe('ChainlinkDataStreamsConsumer', function () {
   it('should generate headers correctly', function () {
     const path = '/api/v1/ws';
     const search = new URLSearchParams({
       feedIDs: [...feedIds].join(','),
     }).toString();
-    const method = "GET";
+    const method = 'GET';
 
-    const headers = new ChainlinkDataStreamsConsumer(config).generateHeaders(method, path, search)
+    const headers = new ChainlinkDataStreamsConsumer(config).generateHeaders(
+      method,
+      path,
+      search,
+    );
 
-     // Check that the returned data is an object
-    assert.strictEqual(typeof headers, 'object', 'Returned data is not an object');
+    // Check that the returned data is an object
+    assert.strictEqual(
+      typeof headers,
+      'object',
+      'Returned data is not an object',
+    );
 
     // Check that all required keys are present
     assert.ok(headers.Authorization, 'Missing Authorization');
-    assert.ok(headers['X-Authorization-Timestamp'], 'Missing X-Authorization-Timestamp');
-    assert.ok(headers['X-Authorization-Signature-SHA256'], 'Missing X-Authorization-Signature-SHA256');
+    assert.ok(
+      headers['X-Authorization-Timestamp'],
+      'Missing X-Authorization-Timestamp',
+    );
+    assert.ok(
+      headers['X-Authorization-Signature-SHA256'],
+      'Missing X-Authorization-Signature-SHA256',
+    );
 
     // Validate the types of each key
-    assert.strictEqual(typeof headers.Authorization, 'string', 'Authorization is not a string');
-    assert.strictEqual(typeof headers['X-Authorization-Timestamp'], 'string', 'X-Authorization-Timestamp is not a string');
-    assert.strictEqual(typeof headers['X-Authorization-Signature-SHA256'], 'string', 'X-Authorization-Signature-SHA256 is not a string');
+    assert.strictEqual(
+      typeof headers.Authorization,
+      'string',
+      'Authorization is not a string',
+    );
+    assert.strictEqual(
+      typeof headers['X-Authorization-Timestamp'],
+      'string',
+      'X-Authorization-Timestamp is not a string',
+    );
+    assert.strictEqual(
+      typeof headers['X-Authorization-Signature-SHA256'],
+      'string',
+      'X-Authorization-Signature-SHA256 is not a string',
+    );
   });
 
   it('should throw if no client Id is provided on generate headers', function () {
@@ -47,46 +71,50 @@ describe('ChainlinkDataStreamsConsumer', function () {
     const search = new URLSearchParams({
       feedIDs: [...feedIds].join(','),
     }).toString();
-    const method = "GET";
+    const method = 'GET';
 
     const wrongClientConfigMissingClientId = {
       hostname: process.env.CHAINLINK_API_URL,
       wsHostname: process.env.CHAINLINK_WEBSOCKET_URL,
       clientSecret: process.env.CHAINLINK_CLIENT_SECRET,
-    }
+    };
     // Assert that client init throws an error when no client id is provided
     assert.throws(
       () => {
-        new ChainlinkDataStreamsConsumer(wrongClientConfigMissingClientId).generateHeaders(method, path, search)
+        new ChainlinkDataStreamsConsumer(
+          wrongClientConfigMissingClientId,
+        ).generateHeaders(method, path, search);
       },
       {
         name: 'Error',
-      }
+      },
     );
-  })
+  });
 
   it('should throw if no client secret is provided on generate headers', function () {
     const path = '/api/v1/ws';
     const search = new URLSearchParams({
       feedIDs: [...feedIds].join(','),
     }).toString();
-    const method = "GET";
+    const method = 'GET';
 
     const wrongClientConfigMissingClientSecret = {
       hostname: process.env.CHAINLINK_API_URL,
       wsHostname: process.env.CHAINLINK_WEBSOCKET_URL,
       clientID: process.env.CHAINLINK_CLIENT_ID,
-    }
+    };
     // Assert that client init throws an error when no client secret is provided
     assert.throws(
       () => {
-        new ChainlinkDataStreamsConsumer(wrongClientConfigMissingClientSecret).generateHeaders(method, path, search)
+        new ChainlinkDataStreamsConsumer(
+          wrongClientConfigMissingClientSecret,
+        ).generateHeaders(method, path, search);
       },
       {
         name: 'Error',
-      }
+      },
     );
-  })
+  });
 
   it('should throw if wrong method parameter is provided on generateHeaders', function () {
     const path = 1230123;
@@ -94,18 +122,21 @@ describe('ChainlinkDataStreamsConsumer', function () {
       feedIDs: [...feedIds].join(','),
     }).toString();
 
-
     const wrongMethod = 'RANDOM';
 
     // Assert that generateHeaders throws an error when provided with invalid method parameter type
     assert.throws(
       () => {
-        new ChainlinkDataStreamsConsumer(config).generateHeaders(wrongMethod, path, search);
+        new ChainlinkDataStreamsConsumer(config).generateHeaders(
+          wrongMethod,
+          path,
+          search,
+        );
       },
       {
         name: 'Error',
-        message: /Invalid HTTP method provided/
-      }
+        message: /Invalid HTTP method provided/,
+      },
     );
   });
 
@@ -119,12 +150,16 @@ describe('ChainlinkDataStreamsConsumer', function () {
     // Assert that generateHeaders throws an error when provided with invalid path parameter type
     assert.throws(
       () => {
-        new ChainlinkDataStreamsConsumer(config).generateHeaders(method, path, search);
+        new ChainlinkDataStreamsConsumer(config).generateHeaders(
+          method,
+          path,
+          search,
+        );
       },
       {
         name: 'Error',
-        message: /Invalid path provided/
-      }
+        message: /Invalid path provided/,
+      },
     );
   });
 
@@ -141,12 +176,17 @@ describe('ChainlinkDataStreamsConsumer', function () {
     // Assert that generateHeaders throws an error when provided with invalid timestamp
     assert.throws(
       () => {
-        new ChainlinkDataStreamsConsumer(config).generateHeaders(method, path, search, invalidTimestamp);
+        new ChainlinkDataStreamsConsumer(config).generateHeaders(
+          method,
+          path,
+          search,
+          invalidTimestamp,
+        );
       },
       {
         name: 'Error',
-        message: /Invalid timestamp/
-      }
+        message: /Invalid timestamp/,
+      },
     );
   });
 
@@ -160,12 +200,16 @@ describe('ChainlinkDataStreamsConsumer', function () {
     // Assert that generateHeaders throws an error when provided with invalid search parameter type
     assert.throws(
       () => {
-        new ChainlinkDataStreamsConsumer(config).generateHeaders(method, path, search);
+        new ChainlinkDataStreamsConsumer(config).generateHeaders(
+          method,
+          path,
+          search,
+        );
       },
       {
         name: 'Error',
-        message: /Search parameter must be a string/
-      }
+        message: /Search parameter must be a string/,
+      },
     );
   });
 
@@ -176,8 +220,10 @@ describe('ChainlinkDataStreamsConsumer', function () {
         feed,
       });
       assert(report instanceof Report);
-      
-      if (DEBUG) { console.log({ feed, report }) };
+
+      if (DEBUG) {
+        console.log({ feed, report });
+      }
     }
   });
 
@@ -189,7 +235,9 @@ describe('ChainlinkDataStreamsConsumer', function () {
 
     assert(typeof reports === 'object');
 
-    if (DEBUG) { console.log({ feed, reports }) };
+    if (DEBUG) {
+      console.log({ feed, reports });
+    }
   });
 
   it('should subscribe and unsubscribe to a feed and receive reports', function (done) {

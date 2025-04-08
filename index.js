@@ -4,6 +4,8 @@ import { hmac } from '@noble/hashes/hmac';
 import { sha256 } from '@noble/hashes/sha256';
 import { base16, bytes } from '@scure/base';
 
+const ALLOWED_METHODS = ['GET', 'HEAD', 'OPTIONS'];
+
 const encoder = new TextEncoder();
 
 const WebSocket = _WebSocket || globalThis.WebSocket;
@@ -101,10 +103,11 @@ export default class ChainlinkDataStreamsConsumer extends EventEmitter {
     // Validate method (must be a string and a valid HTTP method)
     if (
       typeof method !== 'string' ||
-      !/^(GET|POST|PUT|DELETE|PATCH)$/i.test(method) ||
-      method.indexOf(' ') !== -1
+      !ALLOWED_METHODS.includes(method.toUpperCase())
     ) {
-      throw new Error('Invalid HTTP method provided.');
+      throw new Error(
+        `Invalid HTTP method provided or the provided: ${method}. Allowed methods are: GET, HEAD, OPTIONS`,
+      );
     }
 
     // Validate path (must be a non-empty string)
