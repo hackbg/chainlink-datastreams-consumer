@@ -251,61 +251,66 @@ export default class ChainlinkDataStreamsConsumer extends EventEmitter {
             return feeds;
           },
         });
-        if (feeds.size < 1) {
-          if (this.ws) this.disconnect();
-          return resolve();
-        }
-        if (feeds.size > 0) {
-          const path = '/api/v1/ws';
-          const search = new URLSearchParams({
-            feedIDs: [...feeds].join(','),
-          }).toString();
-          const url = Object.assign(new URL(path, `wss://${this.wsHostname}`), {
-            search,
-          });
-          const headers = this.generateHeaders('GET', path, search);
-          if (this.ws) this.disconnect();
-          const ws = (this.ws = new WebSocket(url.toString(), { headers }));
-          const onerror = (error) => {
-            unbind();
-            resolve();
-          };
-          const onopen = () => {
-            unbind();
-            // reset reconnect attempts on successful connection
-            this.reconnect.attempts = 0;
-            resolve(this.ws);
-          };
-          const unbind = () => {
-            ws.off('error', onerror);
-            ws.off('open', onopen);
-          };
-          const onclose = () => {
-            unbind();
-            if (this.reconnect.attempts < this.reconnect.maxAttempts) {
-              this.reconnect.attempts++;
-              console.log(
-                `Reconnecting attempt #${this.reconnect.attempts}/${this.reconnect.maxAttempts}`,
-                `in ${this.reconnect.interval}ms...`,
-              );
-              setTimeout(() => {
-                this.connect();
-              }, this.reconnect.interval);
-            } else {
-              const error =
-                `Max reconnect attempts (${this.reconnect.maxAttempts}) reached. Giving up.`
-              console.error(message);
-              return reject(new Error(message))
-            }
-            resolve();
-          };
-          ws.on('error', onerror);
-          ws.on('open', onopen);
-          ws.on('close', onclose);
-          ws.on('message', this.decodeAndEmit);
-        }
+        this.connect()
       }
     });
+  }
+
+  connect () {
+    const feeds = this.feeds;
+    if (feeds.size < 1) {
+      if (this.ws) this.disconnect();
+      return resolve();
+    }
+    if (feeds.size > 0) {
+      const path = '/api/v1/ws';
+      const search = new URLSearchParams({
+        feedIDs: [...feeds].join(','),
+      }).toString();
+      const url = Object.assign(new URL(path, `wss://${this.wsHostname}`), {
+        search,
+      });
+      const headers = this.generateHeaders('GET', path, search);
+      if (this.ws) this.disconnect();
+      const ws = (this.ws = new WebSocket(url.toString(), { headers }));
+      const onerror = (error) => {
+        unbind();
+        resolve();
+      };
+      const onopen = () => {
+        unbind();
+        // reset reconnect attempts on successful connection
+        this.reconnect.attempts = 0;
+        resolve(this.ws);
+      };
+      const unbind = () => {
+        ws.off('error', onerror);
+        ws.off('open', onopen);
+      };
+      const onclose = () => {
+        unbind();
+        if (this.reconnect.attempts < this.reconnect.maxAttempts) {
+          this.reconnect.attempts++;
+          console.log(
+            `Reconnecting attempt #${this.reconnect.attempts}/${this.reconnect.maxAttempts}`,
+            `in ${this.reconnect.interval}ms...`,
+          );
+          setTimeout(() => {
+            this.connect();
+          }, this.reconnect.interval);
+        } else {
+          const error =
+            `Max reconnect attempts (${this.reconnect.maxAttempts}) reached. Giving up.`
+          console.error(message);
+          return reject(new Error(message))
+        }
+        resolve();
+      };
+      ws.on('error', onerror);
+      ws.on('open', onopen);
+      ws.on('close', onclose);
+      ws.on('message', this.decodeAndEmit);
+    }
   }
 }
 
