@@ -10,9 +10,9 @@ const config = {
   clientID: process.env.CHAINLINK_CLIENT_ID,
   clientSecret: process.env.CHAINLINK_CLIENT_SECRET,
   reconnect: {
-    enabled: process.env.WSS_RECONNECT_ENABLED || true,
-    maxReconnectAttempts: process.env.WSS_RECONNECT_MAX_ATTEMPTS || 3000,
-    reconnectInterval: process.env.WSS_RECONNECT_INTERVAL || 100,
+    enabled: process.env.CHAINLINK_WSS_RECONNECT_ENABLED || true,
+    maxReconnectAttempts: process.env.CHAINLINK_WSS_RECONNECT_MAX_ATTEMPTS || 3000,
+    reconnectInterval: process.env.CHAINLINK_WSS_RECONNECT_INTERVAL || 100,
   },
 };
 
