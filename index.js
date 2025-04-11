@@ -37,62 +37,17 @@ class EventEmitter {
 }
 
 export default class ChainlinkDataStreamsConsumer extends EventEmitter {
-  constructor({
-    hostname,
-    wsHostname,
-    clientID,
-    clientSecret,
-    feeds,
-    reconnectOptions: {
-      enabled = true,
-      maxReconnectAttempts = 1000,
-      reconnectInterval = 100,
-    },
-  } = {}) {
+  constructor(options = {}) {
+    const { hostname, wsHostname, clientID, clientSecret, feeds } = options;
+    let { reconnect = {} } = options;
+    if (typeof reconnect === 'boolean') reconnect = { enabled: reconnect };
+    reconnect.enabled ??= true;
+    reconnect.maxAttempts ??= 1000;
+    reconnect.interval ??= 100;
     super();
-    if (!clientID)
-      throw new Error(
-        'Client ID not passed to ChainlinkDataStreamsConsumer constructor.',
-      );
-    Object.assign(this, { hostname, wsHostname, clientID });
+    Object.assign(this, { hostname, wsHostname, clientID, reconnect });
     this.setClientSecret(clientSecret);
     this.setConnectedFeeds(feeds);
-    this.setReconnectOnFail(reconnectOptions);
-  }
-
-  // Set reconnect on fail
-  setReconnectOnFail(reconnectOptions) {
-    if (!reconnectOptions)
-      console.warn('Reconnect mechanism on connection loss is not set.');
-    Object.defineProperty(this, 'reconnectOptions', {
-      enumerable: true,
-      configurable: true,
-      get() {
-        return reconnectOptions;
-      },
-      set(reconnectOptions) {
-        this.setReconnectOnFail(reconnectOptions);
-        return reconnectOptions;
-      },
-    });
-  }
-
-  reconnect() {
-    if (
-      this.reconnectOptions.reconnectAttempts <
-      this.reconnectOptions.maxReconnectAttempts
-    ) {
-      this.reconnectOptions.reconnectAttempts++;
-      console.log(
-        `Reconnecting attempt #${this.reconnectOptions.reconnectAttempts} in ${this.reconnectOptions.reconnectInterval}ms...`,
-      );
-
-      setTimeout(() => {
-        this.connect();
-      }, this.reconnectOptions.reconnectInterval);
-    } else {
-      console.log('Max reconnect attempts reached. Giving up.');
-    }
   }
 
   // Set and hide secret
@@ -318,7 +273,7 @@ export default class ChainlinkDataStreamsConsumer extends EventEmitter {
           const onopen = () => {
             unbind();
             // reset reconnect attempts on successful connection
-            this.reconnectOptions.reconnectAttempts = 0;
+            this.reconnect.attempts = 0;
             resolve(this.ws);
           };
           const unbind = () => {
@@ -327,11 +282,20 @@ export default class ChainlinkDataStreamsConsumer extends EventEmitter {
           };
           const onclose = () => {
             unbind();
-            if (
-              this.reconnectOptions &&
-              this.reconnectOptions.enabled == true
-            ) {
-              this.reconnect();
+            if (this.reconnect.attempts < this.reconnect.maxAttempts) {
+              this.reconnect.attempts++;
+              console.log(
+                `Reconnecting attempt #${this.reconnect.attempts}/${this.reconnect.maxAttempts}`,
+                `in ${this.reconnect.interval}ms...`,
+              );
+              setTimeout(() => {
+                this.connect();
+              }, this.reconnect.interval);
+            } else {
+              const error =
+                `Max reconnect attempts (${this.reconnect.maxAttempts}) reached. Giving up.`
+              console.error(message);
+              return reject(new Error(message))
             }
             resolve();
           };

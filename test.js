@@ -9,7 +9,7 @@ const config = {
   wsHostname: process.env.CHAINLINK_WEBSOCKET_URL,
   clientID: process.env.CHAINLINK_CLIENT_ID,
   clientSecret: process.env.CHAINLINK_CLIENT_SECRET,
-  reconnectOptions: {
+  reconnect: {
     enabled: process.env.WSS_RECONNECT_ENABLED || true,
     maxReconnectAttempts: process.env.WSS_RECONNECT_MAX_ATTEMPTS || 3000,
     reconnectInterval: process.env.WSS_RECONNECT_INTERVAL || 100,
@@ -95,7 +95,7 @@ describe('ChainlinkDataStreamsConsumer', function () {
       hostname: process.env.CHAINLINK_API_URL,
       wsHostname: process.env.CHAINLINK_WEBSOCKET_URL,
       clientSecret: process.env.CHAINLINK_CLIENT_SECRET,
-      reconnectOptions: {
+      reconnect: {
         enabled: false,
       },
     };
@@ -123,7 +123,7 @@ describe('ChainlinkDataStreamsConsumer', function () {
       hostname: process.env.CHAINLINK_API_URL,
       wsHostname: process.env.CHAINLINK_WEBSOCKET_URL,
       clientID: process.env.CHAINLINK_CLIENT_ID,
-      reconnectOptions: {
+      reconnect: {
         enabled: false,
       },
     };

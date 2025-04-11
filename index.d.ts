@@ -12,7 +12,7 @@ export default class ChainlinkDataStreamsConsumer {
     hostname?: string;
     wsHostname?: string;
     feeds?: string[];
-    reconnectOptions?: ReconnectOptions;
+    reconnect?: boolean|ReconnectOptions;
   });
 
   fetchFeed(args: {
