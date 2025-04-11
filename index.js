@@ -37,7 +37,18 @@ class EventEmitter {
 }
 
 export default class ChainlinkDataStreamsConsumer extends EventEmitter {
-  constructor({ hostname, wsHostname, clientID, clientSecret, feeds } = {}) {
+  constructor({
+    hostname,
+    wsHostname,
+    clientID,
+    clientSecret,
+    feeds,
+    reconnectOptions: {
+      enabled = true,
+      maxReconnectAttempts = 1000,
+      reconnectInterval = 100,
+    },
+  } = {}) {
     super();
     if (!clientID)
       throw new Error(
@@ -46,6 +57,42 @@ export default class ChainlinkDataStreamsConsumer extends EventEmitter {
     Object.assign(this, { hostname, wsHostname, clientID });
     this.setClientSecret(clientSecret);
     this.setConnectedFeeds(feeds);
+    this.setReconnectOnFail(reconnectOptions);
+  }
+
+  // Set reconnect on fail
+  setReconnectOnFail(reconnectOptions) {
+    if (!reconnectOptions)
+      console.warn('Reconnect mechanism on connection loss is not set.');
+    Object.defineProperty(this, 'reconnectOptions', {
+      enumerable: true,
+      configurable: true,
+      get() {
+        return reconnectOptions;
+      },
+      set(reconnectOptions) {
+        this.setReconnectOnFail(reconnectOptions);
+        return reconnectOptions;
+      },
+    });
+  }
+
+  reconnect() {
+    if (
+      this.reconnectOptions.reconnectAttempts <
+      this.reconnectOptions.maxReconnectAttempts
+    ) {
+      this.reconnectOptions.reconnectAttempts++;
+      console.log(
+        `Reconnecting attempt #${this.reconnectOptions.reconnectAttempts} in ${this.reconnectOptions.reconnectInterval}ms...`,
+      );
+
+      setTimeout(() => {
+        this.connect();
+      }, this.reconnectOptions.reconnectInterval);
+    } else {
+      console.log('Max reconnect attempts reached. Giving up.');
+    }
   }
 
   // Set and hide secret
@@ -270,14 +317,27 @@ export default class ChainlinkDataStreamsConsumer extends EventEmitter {
           };
           const onopen = () => {
             unbind();
+            // reset reconnect attempts on successful connection
+            this.reconnectOptions.reconnectAttempts = 0;
             resolve(this.ws);
           };
           const unbind = () => {
             ws.off('error', onerror);
             ws.off('open', onopen);
           };
+          const onclose = () => {
+            unbind();
+            if (
+              this.reconnectOptions &&
+              this.reconnectOptions.enabled == true
+            ) {
+              this.reconnect();
+            }
+            resolve();
+          };
           ws.on('error', onerror);
           ws.on('open', onopen);
+          ws.on('close', onclose);
           ws.on('message', this.decodeAndEmit);
         }
       }

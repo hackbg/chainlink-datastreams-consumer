@@ -9,6 +9,11 @@ const config = {
   wsHostname: process.env.CHAINLINK_WEBSOCKET_URL,
   clientID: process.env.CHAINLINK_CLIENT_ID,
   clientSecret: process.env.CHAINLINK_CLIENT_SECRET,
+  reconnectOptions: {
+    enabled: process.env.WSS_RECONNECT_ENABLED || true,
+    maxReconnectAttempts: process.env.WSS_RECONNECT_MAX_ATTEMPTS || 3000,
+    reconnectInterval: process.env.WSS_RECONNECT_INTERVAL || 100,
+  },
 };
 
 const feedIds = [
@@ -17,6 +22,19 @@ const feedIds = [
 ];
 
 describe('ChainlinkDataStreamsConsumer', function () {
+  it.only('initialize client correctly', function () {
+    const clientConfig = {
+      ...config,
+      feedIds,
+    };
+
+    console.log(clientConfig);
+    // Assert that client init does not throw on correct config
+    assert.doesNotThrow(() => {
+      new ChainlinkDataStreamsConsumer(clientConfig);
+    });
+  });
+
   it('should generate headers correctly', function () {
     const path = '/api/v1/ws';
     const search = new URLSearchParams({
@@ -77,6 +95,9 @@ describe('ChainlinkDataStreamsConsumer', function () {
       hostname: process.env.CHAINLINK_API_URL,
       wsHostname: process.env.CHAINLINK_WEBSOCKET_URL,
       clientSecret: process.env.CHAINLINK_CLIENT_SECRET,
+      reconnectOptions: {
+        enabled: false,
+      },
     };
     // Assert that client init throws an error when no client id is provided
     assert.throws(
@@ -102,6 +123,9 @@ describe('ChainlinkDataStreamsConsumer', function () {
       hostname: process.env.CHAINLINK_API_URL,
       wsHostname: process.env.CHAINLINK_WEBSOCKET_URL,
       clientID: process.env.CHAINLINK_CLIENT_ID,
+      reconnectOptions: {
+        enabled: false,
+      },
     };
     // Assert that client init throws an error when no client secret is provided
     assert.throws(
