@@ -11,7 +11,8 @@ const config = {
   clientSecret: process.env.CHAINLINK_CLIENT_SECRET,
   reconnect: {
     enabled: process.env.CHAINLINK_WSS_RECONNECT_ENABLED || true,
-    maxReconnectAttempts: process.env.CHAINLINK_WSS_RECONNECT_MAX_ATTEMPTS || 3000,
+    maxReconnectAttempts:
+      process.env.CHAINLINK_WSS_RECONNECT_MAX_ATTEMPTS || 3000,
     reconnectInterval: process.env.CHAINLINK_WSS_RECONNECT_INTERVAL || 100,
   },
 };
@@ -22,7 +23,7 @@ const feedIds = [
 ];
 
 describe('ChainlinkDataStreamsConsumer', function () {
-  it.only('initialize client correctly', function () {
+  it('initialize client correctly', function () {
     const clientConfig = {
       ...config,
       feedIds,
