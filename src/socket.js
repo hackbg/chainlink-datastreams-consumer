@@ -26,7 +26,7 @@ export class Socket extends EventEmitter {
         ? { enabled: options.reconnect }
         : options.reconnect),
     };
-    this.manuallyDisconnected = false;
+    this.enabled = true;
     this.setConnectedFeeds(feeds);
   }
 
@@ -56,13 +56,13 @@ export class Socket extends EventEmitter {
     return this.ws?.readyState || WebSocket.CLOSED;
   }
 
-  connect = () => {
-    this.manuallyDisconnected = false;
+  enable = () => {
+    this.enabled = true;
     return this.connectImpl();
   }
 
-  disconnect = () => {
-    this.manuallyDisconnected = true;
+  disable = () => {
+    this.enabled = false;
     return this.disconnectImpl(true);
   }
 
@@ -104,7 +104,7 @@ export class Socket extends EventEmitter {
           resolve();
           return;
         }
-        if (this.manuallyDisconnected) {
+        if (!this.enabled) {
           this.debug(
             `Closed. Manually disconnected, will not reconnect. ` +
             'Use connect() to resume.'
