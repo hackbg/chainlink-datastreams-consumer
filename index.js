@@ -34,16 +34,44 @@ class EventEmitter {
     this.on(event, onceCallback);
     return this;
   };
+
+  emit = (event, data) => {
+    if (this.listeners[event]) {
+      for (const callback of this.listeners[event]) {
+        callback.call(this, data);
+      }
+    }
+    return this;
+  }
 }
 
 export default class ChainlinkDataStreamsConsumer extends EventEmitter {
-  constructor({ hostname, wsHostname, clientID, clientSecret, feeds } = {}) {
-    super();
-    if (!clientID)
+  constructor(options = {}) {
+    if ('clientID' in options) {
       throw new Error(
-        'Client ID not passed to ChainlinkDataStreamsConsumer constructor.',
-      );
-    Object.assign(this, { hostname, wsHostname, clientID });
+        'Deprecated: options.clientID is now options.clientId '+
+        'to match capitalization of other parameters.'
+      )
+    }
+    if ('hostname' in options) {
+      throw new Error(
+        'Deprecated: options.hostname is now options.apiUrl and requires protocol.'
+      )
+    }
+    if ('wsHostname' in options) {
+      throw new Error(
+        'Deprecated: options.wsHostname is now options.wsUrl and requires protocol.'
+      )
+    }
+    const { apiUrl, wsUrl, clientId, clientSecret, feeds, lazy } = options;
+    let { reconnect = {} } = options;
+    if (typeof reconnect === 'boolean') reconnect = { enabled: reconnect };
+    reconnect.enabled ??= true;
+    reconnect.maxAttempts ??= 1000;
+    reconnect.interval ??= 100;
+    super();
+    Object.assign(this, { apiUrl, wsUrl, clientId, reconnect });
+    this.manuallyDisconnected = false;
     this.setClientSecret(clientSecret);
     this.setConnectedFeeds(feeds);
   }
@@ -51,16 +79,9 @@ export default class ChainlinkDataStreamsConsumer extends EventEmitter {
   // Set and hide secret
   setClientSecret(secret) {
     if (!secret) console.warn('Setting empty client secret.');
-    Object.defineProperty(this, 'clientSecret', {
-      enumerable: true,
-      configurable: true,
-      get() {
-        return secret;
-      },
-      set(secret) {
-        this.setClientSecret(secret);
-        return secret;
-      },
+    defineProperty(this, 'clientSecret', () => secret, (secret) => {
+      this.setClientSecret(secret);
+      return secret;
     });
   }
 
@@ -77,12 +98,12 @@ export default class ChainlinkDataStreamsConsumer extends EventEmitter {
     }).then(Report.fromBulkAPIResponse);
 
   async fetch(path, params = {}) {
-    if (!this.hostname) {
+    if (!this.apiUrl) {
       throw new Error(
         'Hostname was not passed to ChainlinkDataStreamsConsumer constructor.',
       );
     }
-    const url = new URL(path, `https://${this.hostname}`);
+    const url = new URL(path, this.apiUrl);
     url.search = new URLSearchParams(params).toString();
     const headers = this.generateHeaders('GET', path, url.search);
     const response = await fetch(url, { headers });
@@ -91,7 +112,7 @@ export default class ChainlinkDataStreamsConsumer extends EventEmitter {
   }
 
   generateHeaders(method, path, search, timestamp = +new Date()) {
-    if (!this.clientID) {
+    if (!this.clientId) {
       throw new Error(
         'Client ID was not passed to ChainlinkDataStreamsConsumer constructor',
       );
@@ -106,7 +127,8 @@ export default class ChainlinkDataStreamsConsumer extends EventEmitter {
       !ALLOWED_METHODS.includes(method.toUpperCase())
     ) {
       throw new Error(
-        `Invalid HTTP method provided or the provided: ${method}. Allowed methods are: GET, HEAD, OPTIONS`,
+        `Invalid HTTP method provided or the provided: ${method}. `+
+        `Allowed methods are: GET, HEAD, OPTIONS`,
       );
     }
 
@@ -144,7 +166,7 @@ export default class ChainlinkDataStreamsConsumer extends EventEmitter {
       method,
       `${path}${search}`,
       base16.encode(sha256.create().update('').digest()).toLowerCase(),
-      this.clientID,
+      this.clientId,
       String(timestamp),
     ];
 
@@ -164,44 +186,57 @@ export default class ChainlinkDataStreamsConsumer extends EventEmitter {
       .toLowerCase();
 
     return {
-      Authorization: this.clientID,
+      Authorization: this.clientId,
       'X-Authorization-Timestamp': timestamp.toString(),
       'X-Authorization-Signature-SHA256': signature,
     };
   }
 
+  connect = () => {
+    this.manuallyDisconnected = false;
+    return this.connectImpl();
+  }
+
   disconnect = () => {
+    this.manuallyDisconnected = true;
+    return this.disconnectImpl();
+  }
+
+  disconnectImpl = () => new Promise((resolve, reject)=>{
     const { ws } = this;
     if (ws) {
       ws.off('message', this.decodeAndEmit);
       if (ws.readyState === WebSocket.CONNECTING) {
-        ws.on('open', () => ws.close());
+        ws.on('open', () => {
+          ws.close();
+          resolve();
+        });
       } else if (ws.readyState === WebSocket.OPEN) {
         ws.close();
+        resolve();
       }
       this.ws = null;
     } else {
       console.warn('Already disconnected.');
+      resolve();
     }
-  };
+  });
 
   decodeAndEmit = (message) => {
-    if (this.listeners['report']) {
-      for (const callback of this.listeners['report']) {
-        callback.call(this, Report.fromSocketMessage(message));
-      }
-    }
+    this.emit('report', Report.fromSocketMessage(message));
   };
 
   subscribeTo = (feeds) => {
     if (typeof feeds === 'string') {
       feeds = [feeds];
     }
+    const newFeeds = new Set()
     for (const feed of new Set(feeds)) {
       if (!this.feeds.has(feed)) {
-        return this.setConnectedFeeds([...this.feeds, feeds]);
+        return this.setConnectedFeeds([...this.feeds, ...newFeeds]);
       }
     }
+    console.warn('No new feeds in:', feeds)
   };
 
   unsubscribeFrom = (feeds) => {
@@ -221,68 +256,117 @@ export default class ChainlinkDataStreamsConsumer extends EventEmitter {
     }
   };
 
-  setConnectedFeeds(feeds) {
-    if (!this.wsHostname) {
+  setConnectedFeeds = (feeds) => {
+    feeds = feeds || [];
+    console.debug('Connecting to feeds:', feeds, this.wsUrl);
+    if ((feeds.length > 0) && !this.wsUrl) {
       throw new Error(
-        'WebSocket hostname was not passed to ChainlinkDataStreamsConsumer constructor.',
+        "Can't connect to feeds without specifying WebSocket URL; set wsUrl to be able to connect.",
       );
     }
-    return new Promise((resolve, reject) => {
-      feeds = feeds || [];
-      const readOnly = () => {
-        throw new Error('The set of feeds is read-only; clone it to mutate.');
-      };
-      feeds = Object.assign(new Set(feeds), {
-        add: readOnly,
-        delete: readOnly,
-        clear: readOnly,
-      });
-      if (!this.feeds || !compareSets(this.feeds, feeds)) {
-        Object.defineProperty(this, 'feeds', {
-          enumerable: true,
-          configurable: true,
-          get() {
-            return feeds;
-          },
-          set(feeds) {
-            this.setConnectedFeeds(feeds);
-            return feeds;
-          },
-        });
-        if (feeds.size < 1) {
-          if (this.ws) this.disconnect();
-          return resolve();
-        }
-        if (feeds.size > 0) {
-          const path = '/api/v1/ws';
-          const search = new URLSearchParams({
-            feedIDs: [...feeds].join(','),
-          }).toString();
-          const url = Object.assign(new URL(path, `wss://${this.wsHostname}`), {
-            search,
-          });
-          const headers = this.generateHeaders('GET', path, search);
-          if (this.ws) this.disconnect();
-          const ws = (this.ws = new WebSocket(url.toString(), { headers }));
-          const onerror = (error) => {
-            unbind();
-            resolve();
-          };
-          const onopen = () => {
-            unbind();
-            resolve(this.ws);
-          };
-          const unbind = () => {
-            ws.off('error', onerror);
-            ws.off('open', onopen);
-          };
-          ws.on('error', onerror);
-          ws.on('open', onopen);
-          ws.on('message', this.decodeAndEmit);
-        }
-      }
+    const readOnly = () => {
+      throw new Error(
+        'The set of feeds is read-only. Use setConnectedFeeds to reconfigure, '+
+        'or clone the set to mutate its values outside the client module.'
+      );
+    };
+    feeds = Object.assign(new Set(feeds), {
+      add: readOnly,
+      delete: readOnly,
+      clear: readOnly,
     });
+    if (!this.feeds || !compareSets(this.feeds, feeds)) {
+      defineProperty(this, 'feeds', () => feeds, (feeds) => {
+        this.setConnectedFeeds(feeds);
+        return feeds;
+      });
+      if (!this.lazy) {
+        this.connectImpl()
+      }
+    }
+    return feeds
   }
+
+  connectImpl = () => new Promise(async (resolve, reject)=>{
+    const feeds = this.feeds;
+    if (feeds.size < 1) {
+      if (this.ws) {
+        console.debug('No feeds enabled, disconnecting. Set feeds to connect.')
+        await this.disconnectImpl();
+      } else {
+        console.debug('No feeds enabled, not connecting. Set feeds to connect.')
+      }
+      return resolve();
+    }
+    if (feeds.size > 0) {
+      const path = '/api/v1/ws';
+      const search = new URLSearchParams({
+        feedIDs: [...feeds].join(','),
+      }).toString();
+      const url = Object.assign(new URL(path, this.wsUrl), {
+        search,
+      });
+      const headers = this.generateHeaders('GET', path, search);
+      if (this.ws) await this.disconnectImpl();
+      const ws = (this.ws = new WebSocket(url.toString(), { headers }));
+      const onerror = (error) => {
+        console.error('Socket error:', error)
+        unbind();
+        resolve();
+      };
+      const onopen = () => {
+        this.emit('connected', this.ws);
+        console.debug('Socket opened.')
+        unbind();
+        // reset reconnect attempts on successful connection
+        this.reconnect.attempts = 0;
+        resolve(this.ws);
+      };
+      const unbind = () => {
+        ws.off('error', onerror);
+        ws.off('open', onopen);
+      };
+      const onclose = () => {
+        this.emit('disconnected', this.ws);
+        console.debug('Socket closed.')
+        unbind();
+        if (!this.reconnect?.enabled) {
+          console.debug(
+            'Socket closed. Reconnect not enabled, will not reconnect. ' +
+            'Use connect() to reconnect.'
+          );
+          resolve();
+          return;
+        }
+        if (this.manuallyDisconnected) {
+          console.debug(
+            'Socket closed. Manually disconnected, will not reconnect. ' +
+            'Use connect() to reconnect.'
+          );
+          resolve();
+          return;
+        }
+        if (this.reconnect.attempts < this.reconnect.maxAttempts) {
+          this.reconnect.attempts++;
+          console.log(
+            `Reconnecting attempt #${this.reconnect.attempts}/${this.reconnect.maxAttempts}`,
+            `in ${this.reconnect.interval}ms...`,
+          );
+          setTimeout(this.connectImpl, this.reconnect.interval);
+        } else {
+          const error =
+            `Max reconnect attempts (${this.reconnect.maxAttempts}) reached. Giving up.`
+          console.error(error);
+          return reject(new Error(error))
+        }
+        resolve();
+      };
+      ws.on('error', onerror);
+      ws.on('open', onopen);
+      ws.on('close', onclose);
+      ws.on('message', this.decodeAndEmit);
+    }
+  })
 }
 
 const compareSets = (xs, ys) =>
@@ -504,13 +588,7 @@ export class Report {
       rawVs,
       rawReport,
     });
-    Object.defineProperty(this, 'version', {
-      enumerable: false,
-      configurable: false,
-      get() {
-        return version;
-      },
-    });
+    defineHiddenProperty(this, 'version', () => { return version });
     for (const { name } of Report.reportBlobAbiSchema[this.version]) {
       this[name] = decoded[name];
     }
@@ -519,6 +597,14 @@ export class Report {
   get [Symbol.toStringTag]() {
     return this.version;
   }
+}
+
+function defineProperty (object, name, get, set) {
+  Object.defineProperty(object, name, { enumerable: true, configurable: true, get, set })
+}
+
+function defineHiddenProperty (object, name, get) {
+  Object.defineProperty(object, name, { enumerable: false, configurable: false, get })
 }
 
 export const legacyV1FeedIDs = new Set([

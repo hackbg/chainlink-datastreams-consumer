@@ -28,9 +28,9 @@ Use your authentication credentials to instantiate the default export of the mod
 import ChainlinkDatastreamsConsumer from '@hackbg/chainlink-datastreams-consumer'
 
 const api = new ChainlinkDatastreamsConsumer({
-  hostname:     '...',
-  wsHostname:   '...',
-  clientID:     '...',
+  apiUrl:       '...',
+  wsUrl:        '...',
+  clientId:     '...',
   clientSecret: '...',
 })
 ```
@@ -72,11 +72,15 @@ Use the instance's `on`, `once` and `off` methods to set up event handling.
 import ChainlinkDatastreamsConsumer from '@hackbg/chainlink-datastreams-consumer'
 
 const api = new ChainlinkDatastreamsConsumer({
-  hostname: '...',
-  wsHostname: '...',
-  clientID: '...',
+  apiUrl:       '...',
+  wsUrl:        '...',
+  clientId:     '...',
   clientSecret: '...',
-  feeds: [ '0x...', '0x...', '0x...', ]
+  feeds: [
+    '0x...',
+    '0x...',
+    '0x...',
+  ]
 }).on('report', report => {
   console.log(report)
 })

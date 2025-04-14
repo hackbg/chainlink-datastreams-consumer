@@ -1,15 +1,52 @@
 import ChainlinkDataStreamsConsumer, { Report } from './index.js';
 import assert from 'node:assert';
 import 'dotenv/config';
+import { WebSocket as _WebSocket } from 'ws';
+const WebSocket = _WebSocket || globalThis.WebSocket;
 
 const DEBUG = false;
 
-const config = {
-  hostname: process.env.CHAINLINK_API_URL,
-  wsHostname: process.env.CHAINLINK_WEBSOCKET_URL,
-  clientID: process.env.CHAINLINK_CLIENT_ID,
-  clientSecret: process.env.CHAINLINK_CLIENT_SECRET,
-};
+let config
+let mockServer
+before(async()=>{
+  if (process.env.CHAINLINK_WS_MOCK_SERVER) {
+    throw new Error('Mock-based testing is not implemented yet.')
+    console.debug('Setting up mock server.')
+    const { WebSocketServer } = await import('ws');
+    const { freePort } = await import('@hackbg/port');
+    const port = await freePort();
+    mockServer = new WebSocketServer({ port })
+    const sockets = new Set()
+    mockServer.on('connection', ws => {
+      console.debug('Mock server received connection')
+      sockets.add(ws)
+      ws.on('close', () => sockets.delete(ws))
+      ws.on('error', () => sockets.delete(ws))
+    })
+    process.env.CHAINLINK_WS_URL = `ws://localhost:${port}`
+    console.debug('Mock server listening on', process.env.CHAINLINK_WS_URL)
+  } else {
+    console.debug('Using real server from .env config.')
+  }
+  config = () => ({
+    apiUrl: process.env.CHAINLINK_API_URL,
+    wsUrl: process.env.CHAINLINK_WS_URL,
+    clientId: process.env.CHAINLINK_CLIENT_ID,
+    clientSecret: process.env.CHAINLINK_CLIENT_SECRET,
+    reconnect: {
+      enabled: process.env.CHAINLINK_WS_RECONNECT_ENABLED || true,
+      maxReconnectAttempts:
+        process.env.CHAINLINK_WS_RECONNECT_MAX_ATTEMPTS || 3000,
+      reconnectInterval: process.env.CHAINLINK_WS_RECONNECT_INTERVAL || 100,
+    },
+  });
+});
+after(async()=>{
+  if (process.env.CHAINLINK_WS_MOCK_SERVER) {
+    console.debug('Tearing down mock server.');
+    mockServer.close();
+  }
+});
 
 const feedIds = [
   '0x00037da06d56d083fe599397a4769a042d63aa73dc4ef57709d31e9971a5b439', // BTC/USD
@@ -17,6 +54,40 @@ const feedIds = [
 ];
 
 describe('ChainlinkDataStreamsConsumer', function () {
+
+  it('rejects deprecated config', function () {
+    assert.throws(() => new ChainlinkDataStreamsConsumer({ clientID: 'x' }), {
+      name: 'Error',
+    });
+    assert.throws(() => new ChainlinkDataStreamsConsumer({ hostname: 'x' }), {
+      name: 'Error',
+    });
+    assert.throws(() => new ChainlinkDataStreamsConsumer({ wsHostname: 'x' }), {
+      name: 'Error',
+    });
+  });
+
+  it('initializes client correctly', function () {
+    const clientConfig = {
+      ...config(),
+      feedIds,
+    };
+
+    console.log({clientConfig});
+    // Assert that client init does not throw on correct config
+    assert.doesNotThrow(() => {
+      new ChainlinkDataStreamsConsumer(clientConfig);
+    });
+  });
+
+  it('allows clientSecret to be updated', function () {
+    const client = new ChainlinkDataStreamsConsumer(config());
+    assert.equal(client.clientSecret, config().clientSecret);
+    const newSecret = 'something';
+    client.clientSecret = newSecret;
+    assert.equal(client.clientSecret, newSecret);
+  });
+
   it('should generate headers correctly', function () {
     const path = '/api/v1/ws';
     const search = new URLSearchParams({
@@ -24,7 +95,7 @@ describe('ChainlinkDataStreamsConsumer', function () {
     }).toString();
     const method = 'GET';
 
-    const headers = new ChainlinkDataStreamsConsumer(config).generateHeaders(
+    const headers = new ChainlinkDataStreamsConsumer(config()).generateHeaders(
       method,
       path,
       search,
@@ -74,9 +145,12 @@ describe('ChainlinkDataStreamsConsumer', function () {
     const method = 'GET';
 
     const wrongClientConfigMissingClientId = {
-      hostname: process.env.CHAINLINK_API_URL,
-      wsHostname: process.env.CHAINLINK_WEBSOCKET_URL,
+      apiUrl: process.env.CHAINLINK_API_URL,
+      wsUrl: process.env.CHAINLINK_WS_URL,
       clientSecret: process.env.CHAINLINK_CLIENT_SECRET,
+      reconnect: {
+        enabled: false,
+      },
     };
     // Assert that client init throws an error when no client id is provided
     assert.throws(
@@ -99,9 +173,12 @@ describe('ChainlinkDataStreamsConsumer', function () {
     const method = 'GET';
 
     const wrongClientConfigMissingClientSecret = {
-      hostname: process.env.CHAINLINK_API_URL,
-      wsHostname: process.env.CHAINLINK_WEBSOCKET_URL,
-      clientID: process.env.CHAINLINK_CLIENT_ID,
+      apiUrl: process.env.CHAINLINK_API_URL,
+      wsUrl: process.env.CHAINLINK_WS_URL,
+      clientId: process.env.CHAINLINK_CLIENT_ID,
+      reconnect: {
+        enabled: false,
+      },
     };
     // Assert that client init throws an error when no client secret is provided
     assert.throws(
@@ -127,7 +204,7 @@ describe('ChainlinkDataStreamsConsumer', function () {
     // Assert that generateHeaders throws an error when provided with invalid method parameter type
     assert.throws(
       () => {
-        new ChainlinkDataStreamsConsumer(config).generateHeaders(
+        new ChainlinkDataStreamsConsumer(config()).generateHeaders(
           wrongMethod,
           path,
           search,
@@ -150,7 +227,7 @@ describe('ChainlinkDataStreamsConsumer', function () {
     // Assert that generateHeaders throws an error when provided with invalid path parameter type
     assert.throws(
       () => {
-        new ChainlinkDataStreamsConsumer(config).generateHeaders(
+        new ChainlinkDataStreamsConsumer(config()).generateHeaders(
           method,
           path,
           search,
@@ -176,7 +253,7 @@ describe('ChainlinkDataStreamsConsumer', function () {
     // Assert that generateHeaders throws an error when provided with invalid timestamp
     assert.throws(
       () => {
-        new ChainlinkDataStreamsConsumer(config).generateHeaders(
+        new ChainlinkDataStreamsConsumer(config()).generateHeaders(
           method,
           path,
           search,
@@ -200,7 +277,7 @@ describe('ChainlinkDataStreamsConsumer', function () {
     // Assert that generateHeaders throws an error when provided with invalid search parameter type
     assert.throws(
       () => {
-        new ChainlinkDataStreamsConsumer(config).generateHeaders(
+        new ChainlinkDataStreamsConsumer(config()).generateHeaders(
           method,
           path,
           search,
@@ -213,9 +290,37 @@ describe('ChainlinkDataStreamsConsumer', function () {
     );
   });
 
+  it("can't fetch without apiUrl", function () {
+    const client = new ChainlinkDataStreamsConsumer(config());
+    delete client.apiUrl
+    assert.rejects(()=>{client.fetch()})
+  });
+
+  it("can't subscribe to feeds without wsUrl", function () {
+    assert.doesNotThrow(() => {
+      new ChainlinkDataStreamsConsumer({...config(), wsUrl: null, feeds: []});
+    });
+    assert.throws(() => {
+      new ChainlinkDataStreamsConsumer({...config(), wsUrl: null, feeds: ['0x0']});
+    });
+  });
+
+  it("doesn't allow connectedFeeds to be mutated directly", function () {
+    const client = new ChainlinkDataStreamsConsumer(config());
+    assert.throws(() => client.feeds.add('0x0'));
+    assert.throws(() => client.feeds.delete('0x0'));
+    assert.throws(() => client.feeds.clear());
+  });
+
+  it("automatically disconnects when feeds are set to []", function () {
+    const client = new ChainlinkDataStreamsConsumer({...config(), feeds: feedIds, lazy: true });
+    assert.ok(client.feeds.size > 0);
+    client.feeds = []
+  });
+
   it('should fetch a report for a single feed and validate the instance', async function () {
     for (const feed of feedIds) {
-      const report = await new ChainlinkDataStreamsConsumer(config).fetchFeed({
+      const report = await new ChainlinkDataStreamsConsumer(config()).fetchFeed({
         timestamp: Math.floor(Date.now() / 1000), // current timestamp in seconds
         feed,
       });
@@ -228,7 +333,7 @@ describe('ChainlinkDataStreamsConsumer', function () {
   });
 
   it('should fetch reports for multiple feeds and validate the type', async function () {
-    const reports = await new ChainlinkDataStreamsConsumer(config).fetchFeeds({
+    const reports = await new ChainlinkDataStreamsConsumer(config()).fetchFeeds({
       timestamp: Math.floor(Date.now() / 1000), // current timestamp in seconds
       feeds: feedIds,
     });
@@ -242,7 +347,7 @@ describe('ChainlinkDataStreamsConsumer', function () {
 
   it('should subscribe and unsubscribe to a feed and receive reports', function (done) {
     const SDK = new ChainlinkDataStreamsConsumer({
-      ...config,
+      ...config(),
       feeds: feedIds,
     });
 
@@ -262,7 +367,24 @@ describe('ChainlinkDataStreamsConsumer', function () {
       done();
     });
 
-    SDK.subscribeTo([feedIds[0]]);
+    SDK.subscribeTo(feedIds[0]);
+    SDK.subscribeTo([]);
+  });
+
+  it('should reconnect when socket closes', function (done) {
+    this.timeout(10000);
+    const SDK = new ChainlinkDataStreamsConsumer({
+      ...config(),
+      feeds: feedIds,
+      lazy: true,
+    });
+    SDK.connect().then(()=>{
+      SDK.once('connected', () => {
+        SDK.disconnect();
+        done()
+      });
+      SDK.ws.close();
+    });
   });
 
   it('should throw an error when calling Report.fromSocketMessage with invalid data', function () {
