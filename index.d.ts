@@ -7,12 +7,20 @@ export type ReconnectOptions = {
 };
 export default class ChainlinkDataStreamsConsumer {
   constructor(args: {
+    /** API client ID. */
     clientId?: string;
+    /** API client secret. */
     clientSecret?: string;
+    /** API HTTP URL. */
     apiUrl?: string;
+    /** API WebSocket URL. */
     wsUrl?: string;
+    /** List of feed IDs to subscribe to. */
     feeds?: string[];
+    /** Disable or configure socket auto-reconnect. */
     reconnect?: boolean|ReconnectOptions;
+    /** Don't automatically connect to socket on construction or setting feeds. */
+    lazy?: boolean;
   });
 
   fetchFeed(args: {

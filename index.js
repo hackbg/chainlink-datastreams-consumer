@@ -54,7 +54,7 @@ export default class ChainlinkDataStreamsConsumer extends EventEmitter {
         'Deprecated: options.wsHostname is now options.wsUrl and requires protocol.'
       )
     }
-    const { apiUrl, wsUrl, clientId, clientSecret, feeds } = options;
+    const { apiUrl, wsUrl, clientId, clientSecret, feeds, lazy } = options;
     let { reconnect = {} } = options;
     if (typeof reconnect === 'boolean') reconnect = { enabled: reconnect };
     reconnect.enabled ??= true;
@@ -273,7 +273,9 @@ export default class ChainlinkDataStreamsConsumer extends EventEmitter {
         this.setConnectedFeeds(feeds);
         return feeds;
       });
-      return this.connectImpl()
+      if (!this.lazy) {
+        return this.connectImpl()
+      }
     }
     return Promise.resolve()
   }
