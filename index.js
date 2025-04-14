@@ -47,6 +47,7 @@ export default class ChainlinkDataStreamsConsumer extends EventEmitter {
     super();
     Object.assign(this, { hostname, wsHostname, clientID, reconnect });
     this.setClientSecret(clientSecret);
+    this.manuallyDisconnected = false;
     this.setConnectedFeeds(feeds);
   }
 
@@ -101,7 +102,8 @@ export default class ChainlinkDataStreamsConsumer extends EventEmitter {
       !ALLOWED_METHODS.includes(method.toUpperCase())
     ) {
       throw new Error(
-        `Invalid HTTP method provided or the provided: ${method}. Allowed methods are: GET, HEAD, OPTIONS`,
+        `Invalid HTTP method provided or the provided: ${method}. `+
+        `Allowed methods are: GET, HEAD, OPTIONS`,
       );
     }
 
@@ -165,7 +167,17 @@ export default class ChainlinkDataStreamsConsumer extends EventEmitter {
     };
   }
 
+  connect = () => {
+    this.manuallyDisconnected = false;
+    this.connectImpl()
+  }
+
   disconnect = () => {
+    this.manuallyDisconnected = true;
+    this.disconnectImpl()
+  }
+
+  disconnectImpl = () => {
     const { ws } = this;
     if (ws) {
       ws.off('message', this.decodeAndEmit);
@@ -216,94 +228,108 @@ export default class ChainlinkDataStreamsConsumer extends EventEmitter {
     }
   };
 
-  setConnectedFeeds(feeds) {
+  setConnectedFeeds = (feeds) => {
     if (!this.wsHostname) {
       throw new Error(
         'WebSocket hostname was not passed to ChainlinkDataStreamsConsumer constructor.',
       );
     }
-    return new Promise((resolve, reject) => {
-      feeds = feeds || [];
-      const readOnly = () => {
-        throw new Error('The set of feeds is read-only; clone it to mutate.');
-      };
-      feeds = Object.assign(new Set(feeds), {
-        add: readOnly,
-        delete: readOnly,
-        clear: readOnly,
-      });
-      if (!this.feeds || !compareSets(this.feeds, feeds)) {
-        Object.defineProperty(this, 'feeds', {
-          enumerable: true,
-          configurable: true,
-          get() {
-            return feeds;
-          },
-          set(feeds) {
-            this.setConnectedFeeds(feeds);
-            return feeds;
-          },
-        });
-        this.connect()
-      }
+    feeds = feeds || [];
+    const readOnly = () => {
+      throw new Error(
+        'The set of feeds is read-only. Use setConnectedFeeds to reconfigure, '+
+        'or clone the set to mutate its values outside the client module.'
+      );
+    };
+    feeds = Object.assign(new Set(feeds), {
+      add: readOnly,
+      delete: readOnly,
+      clear: readOnly,
     });
+    if (!this.feeds || !compareSets(this.feeds, feeds)) {
+      defineProperty(this, 'feeds', () => feeds, (feeds) => {
+        this.setConnectedFeeds(feeds);
+        return feeds;
+      });
+      return this.connectImpl()
+    }
+    return Promise.resolve()
   }
 
-  connect () {
-    const feeds = this.feeds;
-    if (feeds.size < 1) {
-      if (this.ws) this.disconnect();
-      return resolve();
-    }
-    if (feeds.size > 0) {
-      const path = '/api/v1/ws';
-      const search = new URLSearchParams({
-        feedIDs: [...feeds].join(','),
-      }).toString();
-      const url = Object.assign(new URL(path, `wss://${this.wsHostname}`), {
-        search,
-      });
-      const headers = this.generateHeaders('GET', path, search);
-      if (this.ws) this.disconnect();
-      const ws = (this.ws = new WebSocket(url.toString(), { headers }));
-      const onerror = (error) => {
-        unbind();
-        resolve();
-      };
-      const onopen = () => {
-        unbind();
-        // reset reconnect attempts on successful connection
-        this.reconnect.attempts = 0;
-        resolve(this.ws);
-      };
-      const unbind = () => {
-        ws.off('error', onerror);
-        ws.off('open', onopen);
-      };
-      const onclose = () => {
-        unbind();
-        if (this.reconnect.attempts < this.reconnect.maxAttempts) {
-          this.reconnect.attempts++;
-          console.log(
-            `Reconnecting attempt #${this.reconnect.attempts}/${this.reconnect.maxAttempts}`,
-            `in ${this.reconnect.interval}ms...`,
-          );
-          setTimeout(() => {
-            this.connect();
-          }, this.reconnect.interval);
-        } else {
-          const error =
-            `Max reconnect attempts (${this.reconnect.maxAttempts}) reached. Giving up.`
-          console.error(message);
-          return reject(new Error(message))
-        }
-        resolve();
-      };
-      ws.on('error', onerror);
-      ws.on('open', onopen);
-      ws.on('close', onclose);
-      ws.on('message', this.decodeAndEmit);
-    }
+  connectImpl = () => {
+    return new Promise((resolve, reject)=>{
+      const feeds = this.feeds;
+      if (feeds.size < 1) {
+        console.debug('No feeds enabled, disconnecting. Use setConnectedFeeds to connect.')
+        if (this.ws) this.disconnectImpl();
+        return resolve();
+      }
+      if (feeds.size > 0) {
+        const path = '/api/v1/ws';
+        const search = new URLSearchParams({
+          feedIDs: [...feeds].join(','),
+        }).toString();
+        const url = Object.assign(new URL(path, `wss://${this.wsHostname}`), {
+          search,
+        });
+        const headers = this.generateHeaders('GET', path, search);
+        if (this.ws) this.disconnectImpl();
+        const ws = (this.ws = new WebSocket(url.toString(), { headers }));
+        const onerror = (error) => {
+          unbind();
+          resolve();
+        };
+        const onopen = () => {
+          unbind();
+          // reset reconnect attempts on successful connection
+          this.reconnect.attempts = 0;
+          resolve(this.ws);
+        };
+        const unbind = () => {
+          ws.off('error', onerror);
+          ws.off('open', onopen);
+        };
+        const onclose = () => {
+          unbind();
+          if (!this.reconnect?.enabled) {
+            console.debug(
+              'Socket closed. Reconnect not enabled, will not reconnect. ' +
+              'Use connect() to reconnect.'
+            );
+            resolve();
+            return;
+          }
+          if (this.manuallyDisconnected) {
+            console.debug(
+              'Socket closed. Manually disconnected, will not reconnect. ' +
+              'Use connect() to reconnect.'
+            );
+            resolve();
+            return;
+          }
+          if (this.reconnect.attempts < this.reconnect.maxAttempts) {
+            this.reconnect.attempts++;
+            console.log(
+              `Reconnecting attempt #${this.reconnect.attempts}/${this.reconnect.maxAttempts}`,
+              `in ${this.reconnect.interval}ms...`,
+            );
+            setTimeout(() => {
+              this.connectImpl();
+            }, this.reconnect.interval);
+          } else {
+            const error =
+              `Max reconnect attempts (${this.reconnect.maxAttempts}) reached. Giving up.`
+            console.error(error);
+            return reject(new Error(error))
+          }
+          resolve();
+        };
+        ws.on('error', onerror);
+        ws.on('open', onopen);
+        ws.on('close', onclose);
+        ws.on('message', this.decodeAndEmit);
+      }
+    })
   }
 }
 
