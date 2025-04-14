@@ -23,13 +23,13 @@ const feedIds = [
 ];
 
 describe('ChainlinkDataStreamsConsumer', function () {
-  it('initialize client correctly', function () {
+  it('initializes client correctly', function () {
     const clientConfig = {
       ...config,
       feedIds,
     };
 
-    console.log(clientConfig);
+    console.log({clientConfig});
     // Assert that client init does not throw on correct config
     assert.doesNotThrow(() => {
       new ChainlinkDataStreamsConsumer(clientConfig);
@@ -238,7 +238,7 @@ describe('ChainlinkDataStreamsConsumer', function () {
     );
   });
 
-  it('should fetch a report for a single feed and validate the instance', async function () {
+  it('should fetch a report for a single feed and validate the instance', async function (done) {
     for (const feed of feedIds) {
       const report = await new ChainlinkDataStreamsConsumer(config).fetchFeed({
         timestamp: Math.floor(Date.now() / 1000), // current timestamp in seconds
@@ -250,9 +250,10 @@ describe('ChainlinkDataStreamsConsumer', function () {
         console.log({ feed, report });
       }
     }
+    done()
   });
 
-  it('should fetch reports for multiple feeds and validate the type', async function () {
+  it('should fetch reports for multiple feeds and validate the type', async function (done) {
     const reports = await new ChainlinkDataStreamsConsumer(config).fetchFeeds({
       timestamp: Math.floor(Date.now() / 1000), // current timestamp in seconds
       feeds: feedIds,
@@ -263,9 +264,10 @@ describe('ChainlinkDataStreamsConsumer', function () {
     if (DEBUG) {
       console.log({ feed, reports });
     }
+    done()
   });
 
-  it('should subscribe and unsubscribe to a feed and receive reports', function (done) {
+  it('should subscribe and unsubscribe to a feed and receive reports', async function (done) {
     const SDK = new ChainlinkDataStreamsConsumer({
       ...config,
       feeds: feedIds,
@@ -287,7 +289,7 @@ describe('ChainlinkDataStreamsConsumer', function () {
       done();
     });
 
-    SDK.subscribeTo([feedIds[0]]);
+    await SDK.subscribeTo([feedIds[0]]);
   });
 
   it('should throw an error when calling Report.fromSocketMessage with invalid data', function () {
