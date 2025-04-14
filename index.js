@@ -250,13 +250,13 @@ export default class ChainlinkDataStreamsConsumer extends EventEmitter {
   };
 
   setConnectedFeeds = (feeds) => {
-    console.debug('Connecting to feeds:', feeds||'[]');
-    if (!this.wsUrl) {
+    feeds = feeds || [];
+    console.debug('Connecting to feeds:', feeds, this.wsUrl);
+    if ((feeds.length > 0) && !this.wsUrl) {
       throw new Error(
-        'WebSocket URL was not passed to ChainlinkDataStreamsConsumer constructor.',
+        "Can't connect to feeds without specifying WebSocket URL; set wsUrl to be able to connect.",
       );
     }
-    feeds = feeds || [];
     const readOnly = () => {
       throw new Error(
         'The set of feeds is read-only. Use setConnectedFeeds to reconfigure, '+

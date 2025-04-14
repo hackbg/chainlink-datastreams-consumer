@@ -294,6 +294,15 @@ describe('ChainlinkDataStreamsConsumer', function () {
     assert.rejects(()=>{client.fetch()})
   })
 
+  it("can't subscribe to feeds without wsUrl", function () {
+    assert.doesNotThrow(() => {
+      new ChainlinkDataStreamsConsumer({...config, wsUrl: null, feeds: []});
+    });
+    assert.throws(() => {
+      new ChainlinkDataStreamsConsumer({...config, wsUrl: null, feeds: ['0x0']});
+    });
+  })
+
   it('should fetch a report for a single feed and validate the instance', async function () {
     for (const feed of feedIds) {
       const report = await new ChainlinkDataStreamsConsumer(config).fetchFeed({
