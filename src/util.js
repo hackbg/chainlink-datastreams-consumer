@@ -2,8 +2,8 @@ export function defineProperty (object, name, get, set) {
   Object.defineProperty(object, name, { enumerable: true, configurable: true, get, set })
 }
 
-export function defineHiddenProperty (object, name, get) {
-  Object.defineProperty(object, name, { enumerable: false, configurable: false, get })
+export function defineHiddenProperty (object, name, get, set) {
+  Object.defineProperty(object, name, { enumerable: false, configurable: true, get, set })
 }
 
 export function compareSets (xs, ys) {

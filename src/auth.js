@@ -1,4 +1,5 @@
 import { ChainlinkDataStreamsConsumerError } from './error.js';
+import { defineHiddenProperty } from './util.js';
 import { hmac } from '@noble/hashes/hmac';
 import { sha256 } from '@noble/hashes/sha256';
 import { base16 } from '@scure/base';
@@ -10,18 +11,17 @@ const encoder = new TextEncoder();
 export class Auth {
   constructor ({ clientId, clientSecret } = {}) {
     if (!(this.clientId = clientId)) throw new Error.NoClientId();
-    if (!(this.clientSecret = clientSecret)) throw new Error.NoClientSecret();
+    if (!clientSecret) throw new Error.NoClientSecret();
+    this.setClientSecret(clientSecret);
   }
   generateHeaders (method, path, search, timestamp = +new Date()) {
     const { clientId, clientSecret } = this
-    return generateHeaders({
-      clientId, clientSecret, method, path, search, timestamp
-    })
+    return generateHeaders({ clientId, clientSecret, method, path, search, timestamp })
   }
   // Set and hide secret
-  setClientSecret(secret) {
+  setClientSecret (secret) {
     if (!secret) console.warn('Setting empty client secret.');
-    defineProperty(this, 'clientSecret', () => secret, (secret) => {
+    defineHiddenProperty(this, 'clientSecret', () => secret, (secret) => {
       this.setClientSecret(secret);
       return secret;
     });
