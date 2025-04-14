@@ -292,7 +292,7 @@ describe('ChainlinkDataStreamsConsumer', function () {
     const client = new ChainlinkDataStreamsConsumer(config);
     delete client.apiUrl
     assert.rejects(()=>{client.fetch()})
-  })
+  });
 
   it("can't subscribe to feeds without wsUrl", function () {
     assert.doesNotThrow(() => {
@@ -301,7 +301,14 @@ describe('ChainlinkDataStreamsConsumer', function () {
     assert.throws(() => {
       new ChainlinkDataStreamsConsumer({...config, wsUrl: null, feeds: ['0x0']});
     });
-  })
+  });
+
+  it("doesn't allow connectedFeeds to be mutated directly", function () {
+    const client = new ChainlinkDataStreamsConsumer(config);
+    assert.throws(() => client.feeds.add('0x0'));
+    assert.throws(() => client.feeds.delete('0x0'));
+    assert.throws(() => client.feeds.clear());
+  });
 
   it('should fetch a report for a single feed and validate the instance', async function () {
     for (const feed of feedIds) {
