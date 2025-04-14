@@ -306,10 +306,12 @@ export default class ChainlinkDataStreamsConsumer extends EventEmitter {
       if (this.ws) this.disconnectImpl();
       const ws = (this.ws = new WebSocket(url.toString(), { headers }));
       const onerror = (error) => {
+        console.error('Socket error:', error)
         unbind();
         resolve();
       };
       const onopen = () => {
+        console.debug('Socket opened.')
         unbind();
         // reset reconnect attempts on successful connection
         this.reconnect.attempts = 0;
@@ -320,6 +322,7 @@ export default class ChainlinkDataStreamsConsumer extends EventEmitter {
         ws.off('open', onopen);
       };
       const onclose = () => {
+        console.debug('Socket closed.')
         unbind();
         if (!this.reconnect?.enabled) {
           console.debug(
@@ -343,9 +346,7 @@ export default class ChainlinkDataStreamsConsumer extends EventEmitter {
             `Reconnecting attempt #${this.reconnect.attempts}/${this.reconnect.maxAttempts}`,
             `in ${this.reconnect.interval}ms...`,
           );
-          setTimeout(() => {
-            this.connectImpl();
-          }, this.reconnect.interval);
+          setTimeout(this.connectImpl, this.reconnect.interval);
         } else {
           const error =
             `Max reconnect attempts (${this.reconnect.maxAttempts}) reached. Giving up.`

@@ -1,6 +1,8 @@
 import ChainlinkDataStreamsConsumer, { Report } from './index.js';
 import assert from 'node:assert';
 import 'dotenv/config';
+import { WebSocket as _WebSocket } from 'ws';
+const WebSocket = _WebSocket || globalThis.WebSocket;
 
 const DEBUG = false;
 
@@ -367,6 +369,24 @@ describe('ChainlinkDataStreamsConsumer', function () {
 
     SDK.subscribeTo(feedIds[0]);
     SDK.subscribeTo([]);
+  });
+
+  it('should reconnect when socket closes', async function (done) {
+    this.timeout(10000);
+    const SDK = new ChainlinkDataStreamsConsumer({
+      ...config(),
+      feeds: feedIds,
+      lazy: true,
+    });
+    const connecting = await SDK.connect();
+    SDK.ws.close();
+    if (SDK.ws.readyState === WebSocket.CONNECTING) {
+      ws.once('open', () => {
+        done();
+      });
+    } else if (ws.readyState === WebSocket.OPEN) {
+      done()
+    }
   });
 
   it('should throw an error when calling Report.fromSocketMessage with invalid data', function () {
