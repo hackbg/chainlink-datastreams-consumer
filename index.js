@@ -53,16 +53,9 @@ export default class ChainlinkDataStreamsConsumer extends EventEmitter {
   // Set and hide secret
   setClientSecret(secret) {
     if (!secret) console.warn('Setting empty client secret.');
-    Object.defineProperty(this, 'clientSecret', {
-      enumerable: true,
-      configurable: true,
-      get() {
-        return secret;
-      },
-      set(secret) {
-        this.setClientSecret(secret);
-        return secret;
-      },
+    defineProperty(this, 'clientSecret', () => secret, (secret) => {
+      this.setClientSecret(secret);
+      return secret;
     });
   }
 
@@ -533,13 +526,7 @@ export class Report {
       rawVs,
       rawReport,
     });
-    Object.defineProperty(this, 'version', {
-      enumerable: false,
-      configurable: false,
-      get() {
-        return version;
-      },
-    });
+    defineHiddenProperty(this, 'version', () => { return version });
     for (const { name } of Report.reportBlobAbiSchema[this.version]) {
       this[name] = decoded[name];
     }
@@ -548,6 +535,14 @@ export class Report {
   get [Symbol.toStringTag]() {
     return this.version;
   }
+}
+
+function defineProperty (object, name, get, set) {
+  Object.defineProperty(object, name, { enumerable: true, configurable: true, get, set })
+}
+
+function defineHiddenProperty (object, name, get) {
+  Object.defineProperty(object, name, { enumerable: false, configurable: false, get })
 }
 
 export const legacyV1FeedIDs = new Set([
