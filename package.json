@@ -13,8 +13,8 @@
     "ws": "^8.14.1"
   },
   "scripts": {
-    "test": "time c8 --reporter=text mocha test.js",
-    "cov": "time c8 --reporter=html --reporter=text mocha test.js",
+    "test": "time c8 --reporter=text mocha test/test.js",
+    "cov": "time c8 --reporter=html --reporter=text mocha test/test.js",
     "check": "tsc --noEmit"
   },
   "devDependencies": {

@@ -6,27 +6,13 @@ const WebSocket = _WebSocket || globalThis.WebSocket;
 
 const DEBUG = false;
 
-let config
-let mockServer
-before(async()=>{
+let config;
+let mockServer;
+before(async () => {
   if (process.env.CHAINLINK_WS_MOCK_SERVER) {
-    throw new Error('Mock-based testing is not implemented yet.')
-    console.debug('Setting up mock server.')
-    const { WebSocketServer } = await import('ws');
-    const { freePort } = await import('@hackbg/port');
-    const port = await freePort();
-    mockServer = new WebSocketServer({ port })
-    const sockets = new Set()
-    mockServer.on('connection', ws => {
-      console.debug('Mock server received connection')
-      sockets.add(ws)
-      ws.on('close', () => sockets.delete(ws))
-      ws.on('error', () => sockets.delete(ws))
-    })
-    process.env.CHAINLINK_WS_URL = `ws://localhost:${port}`
-    console.debug('Mock server listening on', process.env.CHAINLINK_WS_URL)
+    throw new Error('Mock-based testing is not implemented yet.');
   } else {
-    console.debug('Using real server from .env config.')
+    console.debug('Using real server from .env config.');
   }
   config = () => ({
     apiUrl: process.env.CHAINLINK_API_URL,
@@ -41,7 +27,7 @@ before(async()=>{
     },
   });
 });
-after(async()=>{
+after(async () => {
   if (process.env.CHAINLINK_WS_MOCK_SERVER) {
     console.debug('Tearing down mock server.');
     mockServer.close();
@@ -54,7 +40,6 @@ const feedIds = [
 ];
 
 describe('ChainlinkDataStreamsConsumer', function () {
-
   it('rejects deprecated config', function () {
     assert.throws(() => new ChainlinkDataStreamsConsumer({ clientID: 'x' }), {
       name: 'Error',
@@ -73,7 +58,7 @@ describe('ChainlinkDataStreamsConsumer', function () {
       feedIds,
     };
 
-    console.log({clientConfig});
+    console.log({ clientConfig });
     // Assert that client init does not throw on correct config
     assert.doesNotThrow(() => {
       new ChainlinkDataStreamsConsumer(clientConfig);
@@ -292,16 +277,22 @@ describe('ChainlinkDataStreamsConsumer', function () {
 
   it("can't fetch without apiUrl", function () {
     const client = new ChainlinkDataStreamsConsumer(config());
-    delete client.apiUrl
-    assert.rejects(()=>{client.fetch()})
+    delete client.apiUrl;
+    assert.rejects(() => {
+      client.fetch();
+    });
   });
 
   it("can't subscribe to feeds without wsUrl", function () {
     assert.doesNotThrow(() => {
-      new ChainlinkDataStreamsConsumer({...config(), wsUrl: null, feeds: []});
+      new ChainlinkDataStreamsConsumer({ ...config(), wsUrl: null, feeds: [] });
     });
     assert.throws(() => {
-      new ChainlinkDataStreamsConsumer({...config(), wsUrl: null, feeds: ['0x0']});
+      new ChainlinkDataStreamsConsumer({
+        ...config(),
+        wsUrl: null,
+        feeds: ['0x0'],
+      });
     });
   });
 
@@ -312,18 +303,24 @@ describe('ChainlinkDataStreamsConsumer', function () {
     assert.throws(() => client.feeds.clear());
   });
 
-  it("automatically disconnects when feeds are set to []", function () {
-    const client = new ChainlinkDataStreamsConsumer({...config(), feeds: feedIds, lazy: true });
+  it('automatically disconnects when feeds are set to []', function () {
+    const client = new ChainlinkDataStreamsConsumer({
+      ...config(),
+      feeds: feedIds,
+      lazy: true,
+    });
     assert.ok(client.feeds.size > 0);
-    client.feeds = []
+    client.feeds = [];
   });
 
   it('should fetch a report for a single feed and validate the instance', async function () {
     for (const feed of feedIds) {
-      const report = await new ChainlinkDataStreamsConsumer(config()).fetchFeed({
-        timestamp: Math.floor(Date.now() / 1000), // current timestamp in seconds
-        feed,
-      });
+      const report = await new ChainlinkDataStreamsConsumer(config()).fetchFeed(
+        {
+          timestamp: Math.floor(Date.now() / 1000), // current timestamp in seconds
+          feed,
+        },
+      );
       assert(report instanceof Report);
 
       if (DEBUG) {
@@ -333,10 +330,12 @@ describe('ChainlinkDataStreamsConsumer', function () {
   });
 
   it('should fetch reports for multiple feeds and validate the type', async function () {
-    const reports = await new ChainlinkDataStreamsConsumer(config()).fetchFeeds({
-      timestamp: Math.floor(Date.now() / 1000), // current timestamp in seconds
-      feeds: feedIds,
-    });
+    const reports = await new ChainlinkDataStreamsConsumer(config()).fetchFeeds(
+      {
+        timestamp: Math.floor(Date.now() / 1000), // current timestamp in seconds
+        feeds: feedIds,
+      },
+    );
 
     assert(typeof reports === 'object');
 
@@ -378,10 +377,10 @@ describe('ChainlinkDataStreamsConsumer', function () {
       feeds: feedIds,
       lazy: true,
     });
-    SDK.connect().then(()=>{
+    SDK.connect().then(() => {
       SDK.once('connected', () => {
         SDK.disconnect();
-        done()
+        done();
       });
       SDK.ws.close();
     });
