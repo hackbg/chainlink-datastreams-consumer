@@ -225,11 +225,14 @@ export default class ChainlinkDataStreamsConsumer extends EventEmitter {
     if (typeof feeds === 'string') {
       feeds = [feeds];
     }
+    const newFeeds = new Set()
     for (const feed of new Set(feeds)) {
       if (!this.feeds.has(feed)) {
-        return this.setConnectedFeeds([...this.feeds, feeds]);
+        return this.setConnectedFeeds([...this.feeds, ...newFeeds]);
       }
     }
+    console.warn('No new feeds in:', feeds)
+    return Promise.resolve()
   };
 
   unsubscribeFrom = (feeds) => {

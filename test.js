@@ -366,6 +366,7 @@ describe('ChainlinkDataStreamsConsumer', function () {
     });
 
     SDK.subscribeTo(feedIds[0]);
+    SDK.subscribeTo([]);
   });
 
   it('should throw an error when calling Report.fromSocketMessage with invalid data', function () {
