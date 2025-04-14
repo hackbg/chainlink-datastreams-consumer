@@ -34,6 +34,15 @@ class EventEmitter {
     this.on(event, onceCallback);
     return this;
   };
+
+  emit = (event, data) => {
+    if (this.listeners[event]) {
+      for (const callback of this.listeners[event]) {
+        callback.call(this, data);
+      }
+    }
+    return this;
+  }
 }
 
 export default class ChainlinkDataStreamsConsumer extends EventEmitter {
@@ -62,8 +71,8 @@ export default class ChainlinkDataStreamsConsumer extends EventEmitter {
     reconnect.interval ??= 100;
     super();
     Object.assign(this, { apiUrl, wsUrl, clientId, reconnect });
-    this.setClientSecret(clientSecret);
     this.manuallyDisconnected = false;
+    this.setClientSecret(clientSecret);
     this.setConnectedFeeds(feeds);
   }
 
@@ -214,11 +223,7 @@ export default class ChainlinkDataStreamsConsumer extends EventEmitter {
   });
 
   decodeAndEmit = (message) => {
-    if (this.listeners['report']) {
-      for (const callback of this.listeners['report']) {
-        callback.call(this, Report.fromSocketMessage(message));
-      }
-    }
+    this.emit('report', Report.fromSocketMessage(message));
   };
 
   subscribeTo = (feeds) => {
@@ -232,7 +237,6 @@ export default class ChainlinkDataStreamsConsumer extends EventEmitter {
       }
     }
     console.warn('No new feeds in:', feeds)
-    return Promise.resolve()
   };
 
   unsubscribeFrom = (feeds) => {
@@ -277,18 +281,18 @@ export default class ChainlinkDataStreamsConsumer extends EventEmitter {
         return feeds;
       });
       if (!this.lazy) {
-        return this.connectImpl()
+        this.connectImpl()
       }
     }
-    return Promise.resolve()
+    return feeds
   }
 
-  connectImpl = () => new Promise((resolve, reject)=>{
+  connectImpl = () => new Promise(async (resolve, reject)=>{
     const feeds = this.feeds;
     if (feeds.size < 1) {
       if (this.ws) {
         console.debug('No feeds enabled, disconnecting. Set feeds to connect.')
-        this.disconnectImpl();
+        await this.disconnectImpl();
       } else {
         console.debug('No feeds enabled, not connecting. Set feeds to connect.')
       }
@@ -303,7 +307,7 @@ export default class ChainlinkDataStreamsConsumer extends EventEmitter {
         search,
       });
       const headers = this.generateHeaders('GET', path, search);
-      if (this.ws) this.disconnectImpl();
+      if (this.ws) await this.disconnectImpl();
       const ws = (this.ws = new WebSocket(url.toString(), { headers }));
       const onerror = (error) => {
         console.error('Socket error:', error)
@@ -311,6 +315,7 @@ export default class ChainlinkDataStreamsConsumer extends EventEmitter {
         resolve();
       };
       const onopen = () => {
+        this.emit('connected', this.ws);
         console.debug('Socket opened.')
         unbind();
         // reset reconnect attempts on successful connection
@@ -322,6 +327,7 @@ export default class ChainlinkDataStreamsConsumer extends EventEmitter {
         ws.off('open', onopen);
       };
       const onclose = () => {
+        this.emit('disconnected', this.ws);
         console.debug('Socket closed.')
         unbind();
         if (!this.reconnect?.enabled) {

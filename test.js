@@ -371,22 +371,20 @@ describe('ChainlinkDataStreamsConsumer', function () {
     SDK.subscribeTo([]);
   });
 
-  it('should reconnect when socket closes', async function (done) {
+  it('should reconnect when socket closes', function (done) {
     this.timeout(10000);
     const SDK = new ChainlinkDataStreamsConsumer({
       ...config(),
       feeds: feedIds,
       lazy: true,
     });
-    const connecting = await SDK.connect();
-    SDK.ws.close();
-    if (SDK.ws.readyState === WebSocket.CONNECTING) {
-      ws.once('open', () => {
-        done();
+    SDK.connect().then(()=>{
+      SDK.once('connected', () => {
+        SDK.disconnect();
+        done()
       });
-    } else if (ws.readyState === WebSocket.OPEN) {
-      done()
-    }
+      SDK.ws.close();
+    });
   });
 
   it('should throw an error when calling Report.fromSocketMessage with invalid data', function () {
