@@ -310,6 +310,12 @@ describe('ChainlinkDataStreamsConsumer', function () {
     assert.throws(() => client.feeds.clear());
   });
 
+  it("automatically disconnects when feeds are set to []", function () {
+    const client = new ChainlinkDataStreamsConsumer({...config(), feeds: feedIds, lazy: true });
+    assert.ok(client.feeds.size > 0);
+    client.feeds = []
+  });
+
   it('should fetch a report for a single feed and validate the instance', async function () {
     for (const feed of feedIds) {
       const report = await new ChainlinkDataStreamsConsumer(config()).fetchFeed({
