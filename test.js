@@ -52,6 +52,19 @@ const feedIds = [
 ];
 
 describe('ChainlinkDataStreamsConsumer', function () {
+
+  it('rejects deprecated config', function () {
+    assert.throws(() => new ChainlinkDataStreamsConsumer({ clientID: 'x' }), {
+      name: 'Error',
+    });
+    assert.throws(() => new ChainlinkDataStreamsConsumer({ hostname: 'x' }), {
+      name: 'Error',
+    });
+    assert.throws(() => new ChainlinkDataStreamsConsumer({ wsHostname: 'x' }), {
+      name: 'Error',
+    });
+  });
+
   it('initializes client correctly', function () {
     const clientConfig = {
       ...config,
@@ -63,6 +76,14 @@ describe('ChainlinkDataStreamsConsumer', function () {
     assert.doesNotThrow(() => {
       new ChainlinkDataStreamsConsumer(clientConfig);
     });
+  });
+
+  it('allows clientSecret to be updated', function () {
+    const client = new ChainlinkDataStreamsConsumer(config);
+    assert.equal(client.clientSecret, config.clientSecret);
+    const newSecret = 'something';
+    client.clientSecret = newSecret;
+    assert.equal(client.clientSecret, newSecret);
   });
 
   it('should generate headers correctly', function () {
@@ -266,6 +287,12 @@ describe('ChainlinkDataStreamsConsumer', function () {
       },
     );
   });
+
+  it("can't fetch without apiUrl", function () {
+    const client = new ChainlinkDataStreamsConsumer(config);
+    delete client.apiUrl
+    assert.rejects(()=>{client.fetch()})
+  })
 
   it('should fetch a report for a single feed and validate the instance', async function () {
     for (const feed of feedIds) {
