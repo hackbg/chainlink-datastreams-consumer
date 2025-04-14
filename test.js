@@ -10,7 +10,7 @@ let config
 let mockServer
 before(async()=>{
   if (process.env.CHAINLINK_WS_MOCK_SERVER) {
-    throw new Error('Mock-based testing is not implemeted yet.')
+    throw new Error('Mock-based testing is not implemented yet.')
     console.debug('Setting up mock server.')
     const { WebSocketServer } = await import('ws');
     const { freePort } = await import('@hackbg/port');
