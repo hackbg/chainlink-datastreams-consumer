@@ -1,16 +1,18 @@
 import { Report } from './report.js';
 import { ChainlinkDataStreamsConsumerError } from './error.js';
+import { EventEmitter } from './event.js';
 import { makeSetReadOnly, defineProperty, compareSets } from './util.js';
 import { WebSocket as _WebSocket } from 'ws';
 
 export const WebSocket = _WebSocket || globalThis.WebSocket;
 
-export class Socket {
+export class Socket extends EventEmitter {
 
   // Global socket counter.
   static index = 0;
 
   constructor (options = {}) {
+    super();
     const { auth, url, feeds, lazy = false, reconnect, emitter, } = options
     this.index = ++Socket.index;
     this.url = url;
@@ -28,15 +30,16 @@ export class Socket {
     this.setConnectedFeeds(feeds);
   }
 
+  debug = (...args) => console.debug(`Socket #${this.index}:`, ...args);
+
   setConnectedFeeds = (feeds) => {
-    feeds = feeds || [];
-    console.debug('Connecting to feeds:', feeds, this.url);
-    if ((feeds.length > 0) && !this.url) {
-      throw new Error.NoWsUrl();
-    }
-    feeds = makeSetReadOnly(new Set(feeds), () => {
+    feeds = makeSetReadOnly(new Set(feeds || []), () => {
       throw new Error.ReadOnlyFeedSet();
     });
+    this.debug('Connecting to feeds:', this.url, [...feeds]);
+    if ((feeds.size > 0) && !this.url) {
+      throw new Error.NoWsUrl();
+    }
     if (!this.feeds || !compareSets(this.feeds, feeds)) {
       defineProperty(this, 'feeds', () => feeds, (feeds) => {
         this.setConnectedFeeds(feeds);
@@ -75,7 +78,7 @@ export class Socket {
       const onopen = () => {
         ws.off('open',  onopen);
         this.emitter.emit('connected', this.ws);
-        console.debug(`Socket #${this.index} opened.`)
+        this.debug(`Opened.`)
         // reset reconnect attempts on successful connection
         this.reconnect.attempts = 0;
         resolve(this.ws);
@@ -92,18 +95,18 @@ export class Socket {
         ws.off('close', onclose);
         ws.off('open',  onopen);
         this.emitter.emit('disconnected', this.ws);
-        console.debug(`Socket #${this.index} closed.`)
+        this.debug(`Closed.`)
         if (!this.reconnect?.enabled) {
-          console.debug(
-            `Socket #${this.index} closed. Reconnect not enabled, will not reconnect. ` +
+          this.debug(
+            `Closed. Reconnect not enabled, will not reconnect. ` +
             'Use connect() to reconnect.'
           );
           resolve();
           return;
         }
         if (this.manuallyDisconnected) {
-          console.debug(
-            `Socket #${this.index} closed. Manually disconnected, will not reconnect. ` +
+          this.debug(
+            `Closed. Manually disconnected, will not reconnect. ` +
             'Use connect() to resume.'
           );
           resolve();
@@ -130,10 +133,10 @@ export class Socket {
       ws.on('close',   onclose);
       ws.on('message', this.decodeAndEmit);
     } else if (this.ws) {
-      console.debug('No feeds enabled, disconnecting. Set feeds to connect.')
+      this.debug('No feeds enabled, disconnecting. Set feeds to connect.')
       await this.disconnectImpl(true);
     } else {
-      console.debug('No feeds enabled, not connecting. Set feeds to connect.')
+      this.debug('No feeds enabled, not connecting. Set feeds to connect.')
     }
     resolve();
   })
