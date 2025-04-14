@@ -15,6 +15,7 @@
   },
   "scripts": {
     "test": "c8 --reporter=text mocha test.js",
+    "cov": "c8 --reporter=html --reporter=text mocha test.js",
     "check": "tsc --noEmit"
   },
   "devDependencies": {
