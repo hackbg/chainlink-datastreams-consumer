@@ -38,14 +38,30 @@ class EventEmitter {
 
 export default class ChainlinkDataStreamsConsumer extends EventEmitter {
   constructor(options = {}) {
-    const { hostname, wsHostname, clientID, clientSecret, feeds } = options;
+    if ('clientID' in options) {
+      throw new Error(
+        'Deprecated: options.clientID is now options.clientId '+
+        'to match capitalization of other parameters.'
+      )
+    }
+    if ('hostname' in options) {
+      throw new Error(
+        'Deprecated: options.hostname is now options.apiUrl and requires protocol.'
+      )
+    }
+    if ('wsHostname' in options) {
+      throw new Error(
+        'Deprecated: options.wsHostname is now options.wsUrl and requires protocol.'
+      )
+    }
+    const { apiUrl, wsUrl, clientId, clientSecret, feeds } = options;
     let { reconnect = {} } = options;
     if (typeof reconnect === 'boolean') reconnect = { enabled: reconnect };
     reconnect.enabled ??= true;
     reconnect.maxAttempts ??= 1000;
     reconnect.interval ??= 100;
     super();
-    Object.assign(this, { hostname, wsHostname, clientID, reconnect });
+    Object.assign(this, { apiUrl, wsUrl, clientId, reconnect });
     this.setClientSecret(clientSecret);
     this.manuallyDisconnected = false;
     this.setConnectedFeeds(feeds);
@@ -73,12 +89,12 @@ export default class ChainlinkDataStreamsConsumer extends EventEmitter {
     }).then(Report.fromBulkAPIResponse);
 
   async fetch(path, params = {}) {
-    if (!this.hostname) {
+    if (!this.apiUrl) {
       throw new Error(
         'Hostname was not passed to ChainlinkDataStreamsConsumer constructor.',
       );
     }
-    const url = new URL(path, `https://${this.hostname}`);
+    const url = new URL(path, this.apiUrl);
     url.search = new URLSearchParams(params).toString();
     const headers = this.generateHeaders('GET', path, url.search);
     const response = await fetch(url, { headers });
@@ -87,7 +103,7 @@ export default class ChainlinkDataStreamsConsumer extends EventEmitter {
   }
 
   generateHeaders(method, path, search, timestamp = +new Date()) {
-    if (!this.clientID) {
+    if (!this.clientId) {
       throw new Error(
         'Client ID was not passed to ChainlinkDataStreamsConsumer constructor',
       );
@@ -141,7 +157,7 @@ export default class ChainlinkDataStreamsConsumer extends EventEmitter {
       method,
       `${path}${search}`,
       base16.encode(sha256.create().update('').digest()).toLowerCase(),
-      this.clientID,
+      this.clientId,
       String(timestamp),
     ];
 
@@ -161,7 +177,7 @@ export default class ChainlinkDataStreamsConsumer extends EventEmitter {
       .toLowerCase();
 
     return {
-      Authorization: this.clientID,
+      Authorization: this.clientId,
       'X-Authorization-Timestamp': timestamp.toString(),
       'X-Authorization-Signature-SHA256': signature,
     };
@@ -169,28 +185,33 @@ export default class ChainlinkDataStreamsConsumer extends EventEmitter {
 
   connect = () => {
     this.manuallyDisconnected = false;
-    this.connectImpl()
+    return this.connectImpl();
   }
 
   disconnect = () => {
     this.manuallyDisconnected = true;
-    this.disconnectImpl()
+    return this.disconnectImpl();
   }
 
-  disconnectImpl = () => {
+  disconnectImpl = () => new Promise((resolve, reject)=>{
     const { ws } = this;
     if (ws) {
       ws.off('message', this.decodeAndEmit);
       if (ws.readyState === WebSocket.CONNECTING) {
-        ws.on('open', () => ws.close());
+        ws.on('open', () => {
+          ws.close();
+          resolve();
+        });
       } else if (ws.readyState === WebSocket.OPEN) {
         ws.close();
+        resolve();
       }
       this.ws = null;
     } else {
       console.warn('Already disconnected.');
+      resolve();
     }
-  };
+  });
 
   decodeAndEmit = (message) => {
     if (this.listeners['report']) {
@@ -229,9 +250,10 @@ export default class ChainlinkDataStreamsConsumer extends EventEmitter {
   };
 
   setConnectedFeeds = (feeds) => {
-    if (!this.wsHostname) {
+    console.debug('Connecting to feeds:', feeds||'[]');
+    if (!this.wsUrl) {
       throw new Error(
-        'WebSocket hostname was not passed to ChainlinkDataStreamsConsumer constructor.',
+        'WebSocket URL was not passed to ChainlinkDataStreamsConsumer constructor.',
       );
     }
     feeds = feeds || [];
@@ -256,81 +278,83 @@ export default class ChainlinkDataStreamsConsumer extends EventEmitter {
     return Promise.resolve()
   }
 
-  connectImpl = () => {
-    return new Promise((resolve, reject)=>{
-      const feeds = this.feeds;
-      if (feeds.size < 1) {
-        console.debug('No feeds enabled, disconnecting. Use setConnectedFeeds to connect.')
-        if (this.ws) this.disconnectImpl();
-        return resolve();
+  connectImpl = () => new Promise((resolve, reject)=>{
+    const feeds = this.feeds;
+    if (feeds.size < 1) {
+      if (this.ws) {
+        console.debug('No feeds enabled, disconnecting. Set feeds to connect.')
+        this.disconnectImpl();
+      } else {
+        console.debug('No feeds enabled, not connecting. Set feeds to connect.')
       }
-      if (feeds.size > 0) {
-        const path = '/api/v1/ws';
-        const search = new URLSearchParams({
-          feedIDs: [...feeds].join(','),
-        }).toString();
-        const url = Object.assign(new URL(path, `wss://${this.wsHostname}`), {
-          search,
-        });
-        const headers = this.generateHeaders('GET', path, search);
-        if (this.ws) this.disconnectImpl();
-        const ws = (this.ws = new WebSocket(url.toString(), { headers }));
-        const onerror = (error) => {
-          unbind();
+      return resolve();
+    }
+    if (feeds.size > 0) {
+      const path = '/api/v1/ws';
+      const search = new URLSearchParams({
+        feedIDs: [...feeds].join(','),
+      }).toString();
+      const url = Object.assign(new URL(path, this.wsUrl), {
+        search,
+      });
+      const headers = this.generateHeaders('GET', path, search);
+      if (this.ws) this.disconnectImpl();
+      const ws = (this.ws = new WebSocket(url.toString(), { headers }));
+      const onerror = (error) => {
+        unbind();
+        resolve();
+      };
+      const onopen = () => {
+        unbind();
+        // reset reconnect attempts on successful connection
+        this.reconnect.attempts = 0;
+        resolve(this.ws);
+      };
+      const unbind = () => {
+        ws.off('error', onerror);
+        ws.off('open', onopen);
+      };
+      const onclose = () => {
+        unbind();
+        if (!this.reconnect?.enabled) {
+          console.debug(
+            'Socket closed. Reconnect not enabled, will not reconnect. ' +
+            'Use connect() to reconnect.'
+          );
           resolve();
-        };
-        const onopen = () => {
-          unbind();
-          // reset reconnect attempts on successful connection
-          this.reconnect.attempts = 0;
-          resolve(this.ws);
-        };
-        const unbind = () => {
-          ws.off('error', onerror);
-          ws.off('open', onopen);
-        };
-        const onclose = () => {
-          unbind();
-          if (!this.reconnect?.enabled) {
-            console.debug(
-              'Socket closed. Reconnect not enabled, will not reconnect. ' +
-              'Use connect() to reconnect.'
-            );
-            resolve();
-            return;
-          }
-          if (this.manuallyDisconnected) {
-            console.debug(
-              'Socket closed. Manually disconnected, will not reconnect. ' +
-              'Use connect() to reconnect.'
-            );
-            resolve();
-            return;
-          }
-          if (this.reconnect.attempts < this.reconnect.maxAttempts) {
-            this.reconnect.attempts++;
-            console.log(
-              `Reconnecting attempt #${this.reconnect.attempts}/${this.reconnect.maxAttempts}`,
-              `in ${this.reconnect.interval}ms...`,
-            );
-            setTimeout(() => {
-              this.connectImpl();
-            }, this.reconnect.interval);
-          } else {
-            const error =
-              `Max reconnect attempts (${this.reconnect.maxAttempts}) reached. Giving up.`
-            console.error(error);
-            return reject(new Error(error))
-          }
+          return;
+        }
+        if (this.manuallyDisconnected) {
+          console.debug(
+            'Socket closed. Manually disconnected, will not reconnect. ' +
+            'Use connect() to reconnect.'
+          );
           resolve();
-        };
-        ws.on('error', onerror);
-        ws.on('open', onopen);
-        ws.on('close', onclose);
-        ws.on('message', this.decodeAndEmit);
-      }
-    })
-  }
+          return;
+        }
+        if (this.reconnect.attempts < this.reconnect.maxAttempts) {
+          this.reconnect.attempts++;
+          console.log(
+            `Reconnecting attempt #${this.reconnect.attempts}/${this.reconnect.maxAttempts}`,
+            `in ${this.reconnect.interval}ms...`,
+          );
+          setTimeout(() => {
+            this.connectImpl();
+          }, this.reconnect.interval);
+        } else {
+          const error =
+            `Max reconnect attempts (${this.reconnect.maxAttempts}) reached. Giving up.`
+          console.error(error);
+          return reject(new Error(error))
+        }
+        resolve();
+      };
+      ws.on('error', onerror);
+      ws.on('open', onopen);
+      ws.on('close', onclose);
+      ws.on('message', this.decodeAndEmit);
+    }
+  })
 }
 
 const compareSets = (xs, ys) =>

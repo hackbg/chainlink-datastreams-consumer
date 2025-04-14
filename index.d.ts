@@ -7,10 +7,10 @@ export type ReconnectOptions = {
 };
 export default class ChainlinkDataStreamsConsumer {
   constructor(args: {
-    clientID?: string;
+    clientId?: string;
     clientSecret?: string;
-    hostname?: string;
-    wsHostname?: string;
+    apiUrl?: string;
+    wsUrl?: string;
     feeds?: string[];
     reconnect?: boolean|ReconnectOptions;
   });
@@ -28,6 +28,8 @@ export default class ChainlinkDataStreamsConsumer {
   subscribeTo(feeds: string | string[]): Promise<WebSocket | null>;
 
   unsubscribeFrom(feeds: string | string[]): Promise<WebSocket | null>;
+
+  connect(): Promise<void>;
 
   disconnect(): void;
 

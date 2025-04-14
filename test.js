@@ -4,18 +4,47 @@ import 'dotenv/config';
 
 const DEBUG = false;
 
-const config = {
-  hostname: process.env.CHAINLINK_API_URL,
-  wsHostname: process.env.CHAINLINK_WEBSOCKET_URL,
-  clientID: process.env.CHAINLINK_CLIENT_ID,
-  clientSecret: process.env.CHAINLINK_CLIENT_SECRET,
-  reconnect: {
-    enabled: process.env.CHAINLINK_WSS_RECONNECT_ENABLED || true,
-    maxReconnectAttempts:
-      process.env.CHAINLINK_WSS_RECONNECT_MAX_ATTEMPTS || 3000,
-    reconnectInterval: process.env.CHAINLINK_WSS_RECONNECT_INTERVAL || 100,
-  },
-};
+let config
+let mockServer
+before(async()=>{
+  if (process.env.CHAINLINK_WS_MOCK_SERVER) {
+    throw new Error('Mock-based testing is not implemeted yet.')
+    console.debug('Setting up mock server.')
+    const { WebSocketServer } = await import('ws');
+    const { freePort } = await import('@hackbg/port');
+    const port = await freePort();
+    mockServer = new WebSocketServer({ port })
+    const sockets = new Set()
+    mockServer.on('connection', ws => {
+      console.debug('Mock server received connection')
+      sockets.add(ws)
+      ws.on('close', () => sockets.delete(ws))
+      ws.on('error', () => sockets.delete(ws))
+    })
+    process.env.CHAINLINK_WS_URL = `ws://localhost:${port}`
+    console.debug('Mock server listening on', process.env.CHAINLINK_WS_URL)
+  } else {
+    console.debug('Using real server from .env config.')
+  }
+  config = {
+    apiUrl: process.env.CHAINLINK_API_URL,
+    wsUrl: process.env.CHAINLINK_WS_URL,
+    clientId: process.env.CHAINLINK_CLIENT_ID,
+    clientSecret: process.env.CHAINLINK_CLIENT_SECRET,
+    reconnect: {
+      enabled: process.env.CHAINLINK_WS_RECONNECT_ENABLED || true,
+      maxReconnectAttempts:
+        process.env.CHAINLINK_WS_RECONNECT_MAX_ATTEMPTS || 3000,
+      reconnectInterval: process.env.CHAINLINK_WS_RECONNECT_INTERVAL || 100,
+    },
+  };
+});
+after(async()=>{
+  if (process.env.CHAINLINK_WS_MOCK_SERVER) {
+    console.debug('Tearing down mock server.');
+    mockServer.close();
+  }
+});
 
 const feedIds = [
   '0x00037da06d56d083fe599397a4769a042d63aa73dc4ef57709d31e9971a5b439', // BTC/USD
@@ -93,8 +122,8 @@ describe('ChainlinkDataStreamsConsumer', function () {
     const method = 'GET';
 
     const wrongClientConfigMissingClientId = {
-      hostname: process.env.CHAINLINK_API_URL,
-      wsHostname: process.env.CHAINLINK_WEBSOCKET_URL,
+      apiUrl: process.env.CHAINLINK_API_URL,
+      wsUrl: process.env.CHAINLINK_WS_URL,
       clientSecret: process.env.CHAINLINK_CLIENT_SECRET,
       reconnect: {
         enabled: false,
@@ -121,9 +150,9 @@ describe('ChainlinkDataStreamsConsumer', function () {
     const method = 'GET';
 
     const wrongClientConfigMissingClientSecret = {
-      hostname: process.env.CHAINLINK_API_URL,
-      wsHostname: process.env.CHAINLINK_WEBSOCKET_URL,
-      clientID: process.env.CHAINLINK_CLIENT_ID,
+      apiUrl: process.env.CHAINLINK_API_URL,
+      wsUrl: process.env.CHAINLINK_WS_URL,
+      clientId: process.env.CHAINLINK_CLIENT_ID,
       reconnect: {
         enabled: false,
       },
@@ -238,7 +267,7 @@ describe('ChainlinkDataStreamsConsumer', function () {
     );
   });
 
-  it('should fetch a report for a single feed and validate the instance', async function (done) {
+  it('should fetch a report for a single feed and validate the instance', async function () {
     for (const feed of feedIds) {
       const report = await new ChainlinkDataStreamsConsumer(config).fetchFeed({
         timestamp: Math.floor(Date.now() / 1000), // current timestamp in seconds
@@ -250,10 +279,9 @@ describe('ChainlinkDataStreamsConsumer', function () {
         console.log({ feed, report });
       }
     }
-    done()
   });
 
-  it('should fetch reports for multiple feeds and validate the type', async function (done) {
+  it('should fetch reports for multiple feeds and validate the type', async function () {
     const reports = await new ChainlinkDataStreamsConsumer(config).fetchFeeds({
       timestamp: Math.floor(Date.now() / 1000), // current timestamp in seconds
       feeds: feedIds,
@@ -264,10 +292,9 @@ describe('ChainlinkDataStreamsConsumer', function () {
     if (DEBUG) {
       console.log({ feed, reports });
     }
-    done()
   });
 
-  it('should subscribe and unsubscribe to a feed and receive reports', async function (done) {
+  it('should subscribe and unsubscribe to a feed and receive reports', function (done) {
     const SDK = new ChainlinkDataStreamsConsumer({
       ...config,
       feeds: feedIds,
@@ -289,7 +316,7 @@ describe('ChainlinkDataStreamsConsumer', function () {
       done();
     });
 
-    await SDK.subscribeTo([feedIds[0]]);
+    SDK.subscribeTo([feedIds[0]]);
   });
 
   it('should throw an error when calling Report.fromSocketMessage with invalid data', function () {
