@@ -34,10 +34,10 @@ export class ChainlinkDataStreamsConsumer extends EventEmitter {
     return this.fetcher.feeds({ timestamp, feeds });
   }
   connect () {
-    return this.socket.connect();
+    return this.socket.enable();
   }
   disconnect () {
-    return this.socket.disconnect();
+    return this.socket.disable();
   }
   subscribeTo (feeds) {
     return this.socket.subscribeTo(feeds);

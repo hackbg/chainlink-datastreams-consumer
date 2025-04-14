@@ -1,4 +1,5 @@
 export class EventEmitter {
+
   listeners = {};
 
   on = (event, callback) => {
@@ -15,9 +16,9 @@ export class EventEmitter {
   };
 
   once = (event, callback) => {
-    const onceCallback = (...args) => {
-      callback(...args);
+    const onceCallback = async (...args) => {
       this.off(event, onceCallback);
+      await Promise.resolve(callback(...args));
     };
     this.on(event, onceCallback);
     return this;
@@ -31,4 +32,11 @@ export class EventEmitter {
     }
     return this;
   }
+}
+
+export function once (emitter, event, callback) {
+  emitter.addEventListener(event, function onceWrapper (...args) {
+    emitter.removeEventListener(event, onceWrapper);
+    callback(...args);
+  })
 }

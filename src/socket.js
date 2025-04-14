@@ -1,191 +1,177 @@
 import { Report } from './report.js';
 import { ChainlinkDataStreamsConsumerError } from './error.js';
-import { EventEmitter } from './event.js';
 import { makeSetReadOnly, defineProperty, compareSets } from './util.js';
+import { once } from './event.js';
 import { WebSocket as _WebSocket } from 'ws';
 
 export const WebSocket = _WebSocket || globalThis.WebSocket;
 
-export class Socket extends EventEmitter {
+let connectionIndex = 0
+
+export class Socket {
 
   // Global socket counter.
   static index = 0;
 
   constructor (options = {}) {
-    super();
-    const { auth, url, feeds, lazy = false, reconnect, emitter, } = options
+    const { auth, url, feeds, lazy = false, emitter, } = options
     this.index = ++Socket.index;
     this.url = url;
     this.auth = auth;
     this.emitter = emitter;
+    let { reconnect } = options
+    if (typeof reconnect === 'boolean') reconnect = { enabled: reconnect }
     this.reconnect = {
-      enabled:     true,
-      maxAttempts: Infinity,
-      interval:    1000,
-      ...((typeof options.reconnect === 'boolean')
-        ? { enabled: options.reconnect }
-        : options.reconnect),
+      enabled:     reconnect.enabled ?? true,
+      interval:    reconnect.interval ?? 1000,
+      maxAttempts: reconnect.maxAttempts ?? Infinity,
+      attempts:    0,
     };
     this.enabled = true;
+    this.connection = null;
     this.setConnectedFeeds(feeds);
   }
 
-  debug = (...args) => console.debug(`Socket #${this.index}:`, ...args);
+  debug = (...args) => console.debug(
+    `Socket #${this.index}:`, ...args
+  );
+
+  logConnecting = (attempt) => this.debug(
+    `Connecting (#${attempt}/${this.reconnect.maxAttempts})`
+  );
+
+  logReconnecting = (attempt) => this.debug(
+    `Reconnecting (#${attempt}/${this.reconnect.maxAttempts})`
+  );
+
+  logConnectionFailed = () => this.debug(
+    `Connection failed. ` +
+    `Retry #${this.reconnect.attempts}/${this.reconnect.maxAttempts} ` +
+    `in ${this.reconnect.interval}ms...`
+  );
+
+  logConnectionClosed = () => this.debug(
+    `Connection closed. ` +
+    `Retry #${this.reconnect.attempts}/${this.reconnect.maxAttempts} ` +
+    `in ${this.reconnect.interval}ms...`,
+  );
 
   setConnectedFeeds = (feeds) => {
+
     feeds = makeSetReadOnly(new Set(feeds || []), () => {
       throw new Error.ReadOnlyFeedSet();
     });
-    this.debug('Connecting to feeds:', this.url, [...feeds]);
+
+    this.debug('Using URL and feeds:', this.url, [...feeds]);
+
     if ((feeds.size > 0) && !this.url) {
       throw new Error.NoWsUrl();
     }
+
     if (!this.feeds || !compareSets(this.feeds, feeds)) {
       defineProperty(this, 'feeds', () => feeds, (feeds) => {
         this.setConnectedFeeds(feeds);
         return feeds;
       });
       if (!this.lazy) {
-        this.connectImpl()
+        return this.enable()
       }
     }
-    return feeds
+
+    return Promise.resolve(null)
+
   }
 
   get readyState () {
-    return this.ws?.readyState || WebSocket.CLOSED;
+    return this.connection?.socket.readyState || WebSocket.CLOSED;
   }
 
   enable = () => {
     this.enabled = true;
-    return this.connectImpl();
+    if (!this.connection) {
+      return this.connect();
+    }
   }
 
-  disable = () => {
+  disable = async () => {
     this.enabled = false;
-    return this.disconnectImpl(true);
+    if (this.connection) {
+      await this.connection.close()
+    }
   }
 
-  connectImpl = () => new Promise(async (resolve, reject)=>{
-    const { feeds = new Set() } = this;
+  configure = (feeds = this.feeds || new Set()) => {
+    const path = '/api/v1/ws';
+    const search = new URLSearchParams({ feedIDs: [...feeds].join(','), }).toString();
+    return {
+      url:     Object.assign(new URL(path, this.url), { search }).toString(),
+      headers: this.auth.generateHeaders('GET', path, search)
+    }
+  }
+
+  connect = async () => {
+    this.enabled = true;
+    const { emitter, decodeAndEmit, feeds = new Set(), onMessage } = this;
     if (feeds.size > 0) {
-      const path    = '/api/v1/ws';
-      const search  = new URLSearchParams({ feedIDs: [...feeds].join(','), }).toString();
-      const url     = Object.assign(new URL(path, this.url), { search, });
-      const headers = this.auth.generateHeaders('GET', path, search);
-      if (this.ws) await this.disconnectImpl(true);
-      const ws = (this.ws = new WebSocket(url.toString(), { headers }));
-      const onopen = () => {
-        ws.off('open',  onopen);
-        this.emitter.emit('connected', this.ws);
-        this.debug(`Opened.`)
-        // reset reconnect attempts on successful connection
-        this.reconnect.attempts = 0;
-        resolve(this.ws);
-      };
-      const onerror = (error) => {
-        ws.off('error', onerror);
-        ws.off('close', onclose);
-        ws.off('open',  onopen);
-        console.error(`Socket #${this.index} error:`, error)
-        resolve();
-      };
-      const onclose = () => {
-        ws.off('error', onerror);
-        ws.off('close', onclose);
-        ws.off('open',  onopen);
-        this.emitter.emit('disconnected', this.ws);
-        this.debug(`Closed.`)
-        if (!this.reconnect?.enabled) {
-          this.debug(
-            `Closed. Reconnect not enabled, will not reconnect. ` +
-            'Use connect() to reconnect.'
-          );
-          resolve();
-          return;
-        }
-        if (!this.enabled) {
-          this.debug(
-            `Closed. Manually disconnected, will not reconnect. ` +
-            'Use connect() to resume.'
-          );
-          resolve();
-          return;
-        }
-        if (this.reconnect.attempts < this.reconnect.maxAttempts) {
-          this.reconnect.attempts++;
-          console.log(
-            `Socket #${this.index} reconnecting: `+
-            `attempt #${this.reconnect.attempts}/${this.reconnect.maxAttempts}`,
-            `in ${this.reconnect.interval}ms...`,
-          );
-          setTimeout(this.connectImpl, this.reconnect.interval);
+      const { url, headers } = this.configure(feeds);
+      if (this.connection) await this.connection.close();
+      let firstTry = this.enabled;
+      while (firstTry || (
+        this.reconnect?.enabled && (this.reconnect.attempts < this.reconnect.maxAttempts)
+      )) {
+        const attempt = this.reconnect?.attempts ? ++this.reconnect.attempts : 1;
+        if (firstTry) {
+          firstTry = false;
+          this.logConnecting(attempt);
         } else {
-          const error = `Socket #${this.index}: `+
-            `max reconnect attempts (${this.reconnect.maxAttempts}) reached. Giving up.`
-          console.error(error);
-          return reject(new Error.Reconnect(error))
+          this.logReconnecting(attempt);
         }
-        resolve();
-      };
-      ws.on('error',   onerror);
-      ws.on('open',    onopen);
-      ws.on('close',   onclose);
-      ws.on('message', this.decodeAndEmit);
-    } else if (this.ws) {
-      this.debug('No feeds enabled, disconnecting. Set feeds to connect.')
-      await this.disconnectImpl(true);
-    } else {
-      this.debug('No feeds enabled, not connecting. Set feeds to connect.')
-    }
-    resolve();
-  })
-
-  disconnectImpl = (unbind) => {
-    const { ws } = this;
-    if (unbind) {
-      this.ws.off('error', onerror);
-      this.ws.off('close', onclose);
-      this.ws.off('open',  onopen);
-    }
-    return new Promise((resolve, reject)=>{
-      if (ws) {
-        ws.off('message', this.decodeAndEmit);
-        if (ws.readyState === WebSocket.CONNECTING) {
-          ws.on('open', () => {
-            ws.close();
-            resolve();
-          });
-        } else if (ws.readyState === WebSocket.OPEN) {
-          ws.close();
-          resolve();
+        try {
+          this.connection = createSocket({
+            url, headers, emitter, onMessage, debug: this.debug
+          })
+          await this.connection.ready
+          this.reconnect.attempts = 0; // reset reconnect attempts on successful connection
+          return // stop retrying on success
+        } catch (e) {
+          console.error(e)
+          this.debug(`Reconnecting in ${this.reconnect.interval}ms...`,);
+          await new Promise(resolve=>setTimeout(resolve, this.reconnect.interval));
         }
-        this.ws = null;
-      } else {
-        console.warn('Already disconnected.');
-        resolve();
       }
-    })
-  };
+      this.debug(`Connection failed. Use connect() to retry.`);
+      throw new Error.Reconnect(error);
+    } else if (this.connection) {
+      this.debug('Disconnecting because all feeds were disabled. Set feeds to connect.')
+      await this.disable();
+    } else {
+      this.debug('Not connecting because no feeds are enabled. Set feeds to connect.')
+    }
+  }
 
-  decodeAndEmit = (message) => {
-    this.emitter.emit('report', Report.fromSocketMessage(message));
-  };
+  onMessage = ({ message: { data } }) => {
+    const report = Report.fromSocketMessage(data)
+    this.debug('Received message from feed', report.feedId)
+    this.emitter.emit('report', report)
+  }
 
   subscribeTo = (feeds) => {
+    this.debug('Subscribe to:', feeds);
     if (typeof feeds === 'string') {
       feeds = [feeds];
     }
-    const newFeeds = new Set()
     for (const feed of new Set(feeds)) {
       if (!this.feeds.has(feed)) {
-        return this.setConnectedFeeds([...this.feeds, ...newFeeds]);
+        feeds = new Set([...this.feeds, ...feeds]);
+        this.debug('New feed count:', feeds.size);
+        return this.setConnectedFeeds(feeds);
       }
     }
-    console.warn('No new feeds in:', feeds)
+    this.debug('No new feeds in:', feeds);
   };
 
   unsubscribeFrom = (feeds) => {
+    this.debug('Unsubscribe from:', feeds);
     if (typeof feeds === 'string') {
       feeds = [feeds];
     }
@@ -198,10 +184,110 @@ export class Socket extends EventEmitter {
       }
     }
     if (changed) {
+      this.debug('New feed count:', updatedFeeds.size);
       return this.setConnectedFeeds(updatedFeeds);
     }
   };
 
+}
+
+function createSocket ({
+  url,
+  headers,
+  emitter,
+  onMessage,
+  onOpen,
+  onError,
+  onClose,
+  debug = () => {}
+}) {
+  const index = ++connectionIndex;
+  emitter.emit('socket-connect', { index, get socket () { return { url } } })
+  const socket = bind(new WebSocket(url, { headers }));
+  const ready = afterSocketOpen(socket);
+  emitter.emit('socket-connecting', { index, get socket () { socket } })
+  return {
+    get index  () { return index },
+    get ready  () { return ready },
+    get socket () { return socket },
+    get close  () { return close },
+  }
+  function bind (socket) {
+    socket.addEventListener('error',   onErrorWrapper);
+    socket.addEventListener('close',   onCloseWrapper);
+    socket.addEventListener('open',    onOpenWrapper);
+    socket.addEventListener('message', onMessageWrapper);
+    return socket
+  }
+  function unbind () {
+    socket.removeEventListener('error',   onErrorWrapper);
+    socket.removeEventListener('close',   onCloseWrapper);
+    socket.removeEventListener('open',    onOpenWrapper);
+    socket.removeEventListener('message', onMessageWrapper);
+  }
+  async function close () {
+    emitter.emit('socket-close-requested', { index, get socket () { socket } })
+    const result = afterSocketClose(socket)
+    await ready
+    socket.close()
+    emitter.emit('socket-close-performed', { index, get socket () { socket } })
+    return result
+  }
+  async function onMessageWrapper (message) {
+    emitter.emit('socket-message', { index, get socket () { socket }, get message () { message } });
+    onMessage && await Promise.resolve(onMessage({ index, socket, message }))
+  }
+  async function onErrorWrapper (error) {
+    emitter.emit('socket-error', { index, error, get socket () { socket } });
+    unbind()
+    onError && await Promise.resolve(onError({ index, socket, error }))
+  }
+  async function onCloseWrapper () {
+    emitter.emit('socket-closing', { index, get socket () { socket } });
+    unbind()
+    onClose && await Promise.resolve(onClose({ index, socket }))
+    emitter.emit('socket-closed', { index, get socket () { socket } });
+  }
+  async function onOpenWrapper () {
+    emitter.emit('socket-opening', { socket });
+    socket.removeEventListener('open', onOpen);
+    onOpen && await Promise.resolve(onOpen({ index, socket }))
+    emitter.emit('socket-opened', { socket });
+  }
+}
+
+function afterSocketOpen (socket, callback = x => x) {
+  return new Promise((resolve, reject)=>{
+    switch (socket.readyState) {
+      case WebSocket.CONNECTING:
+        once(socket, 'open',  () => resolve(callback(socket)));
+        once(socket, 'error', () => reject(new Error('afterSocketOpen: connection failed')));
+        return
+      case WebSocket.CONNECTED:
+        return resolve(callback(socket));
+      case WebSocket.CLOSING:
+        return reject(new Error('afterSocketOpen: called on closing socket'))
+      case WebSocket.CLOSED:
+        return reject(new Error('afterSocketOpen: called on closed socket'));
+      default:
+        return reject(new Error('afterSocketOpen: invalid WebSocket readyState'));
+    }
+  })
+}
+
+function afterSocketClose (socket, callback = x => x) {
+  return new Promise((resolve, reject)=>{
+    switch (socket.readyState) {
+      case WebSocket.CONNECTING:
+      case WebSocket.CONNECTED:
+      case WebSocket.CLOSING:
+        return once(socket, 'close', () => resolve(callback(socket)));
+      case WebSocket.CLOSED:
+        return resolve(callback(socket));
+      default:
+        return reject(new Error('afterSocketClose: invalid WebSocket readyState'));
+    }
+  })
 }
 
 export const Error = class SocketError extends ChainlinkDataStreamsConsumerError {
@@ -220,7 +306,7 @@ export const Error = class SocketError extends ChainlinkDataStreamsConsumerError
   }
   static Reconnect = class ReconnectError extends SocketError {
     constructor (error) {
-      super(`Socket teconnect error: ${error.message}`)
+      super(`Socket reconnect error: ${error.message}`)
       this.stack = error.stack
     }
   }

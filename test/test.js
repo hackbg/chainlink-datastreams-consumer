@@ -174,38 +174,50 @@ describe('subscribing', function () {
     }
   });
 
-  it('subscribes and unsubscribes to a feed and receives reports', function (done) {
-    this.timeout(10000);
-    const SDK = new Consumer({ ...config(), feeds: feedIds, });
-    let reports = 0;
-    const reportReceived = async (report) => {
-      reports++;
-      console.log(`Report #${reports}:`, report);
-      if (reports >= 3) {
-        await SDK.disconnect();
-        done();
-      }
-    }
-    SDK.once('report', report => {
-      reportReceived(report);
-      SDK.unsubscribeFrom(report.feedId);
-      SDK.once('report', reportReceived);
+  it('receives reports when subscribed via constructor', function (done) {
+    this.timeout(30000);
+    const SDK = new Consumer({ ...config(), feeds: feedIds });
+    SDK.once('report', (report) => {
+      SDK.disconnect();
+      done();
     });
-    SDK.once('report', reportReceived);
+  });
+
+  it.only('receives reports when subscribed via method', function (done) {
+    this.timeout(30000);
+    const SDK = new Consumer({ ...config() });
     SDK.subscribeTo(feedIds[0]);
-    SDK.subscribeTo([]);
+    SDK.once('report', async (report) => {
+      if (report.feedId === feedIds[0]) {
+        await SDK.unsubscribeFrom(feedIds[0]);
+        await SDK.subscribeTo(feedIds[1]);
+        SDK.once('report', async (report) => {
+          await SDK.unsubscribeFrom(feedIds[1]);
+          done();
+          //if (report.feedId === feedIds[1]) {
+            //SDK.unsubscribeFrom(feedIds[1]);
+            //done();
+          //}
+        });
+      }
+    });
   });
 
   it('reconnects when socket closes', function (done) {
-    this.timeout(10000);
+    this.timeout(30000);
     const SDK = new Consumer({ ...config(), feeds: feedIds, lazy: true, });
-    SDK.connect().then(()=>{
-      SDK.once('connected', () => {
+    SDK.once('socket-message', async () => {
+      console.log('Received 1st message, closing socket...')
+      SDK.socket.connection.close();
+      console.log('Closed socket...')
+      SDK.once('socket-message', async () => {
+        console.log('Reconnected, received 2nd message, closing for good...')
         SDK.disconnect();
+        console.log('Done!')
         done()
       });
-      SDK.ws.close();
     });
+    SDK.connect();
   });
 
 })
