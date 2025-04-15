@@ -37,6 +37,8 @@ declare class ChainlinkDataStreamsConsumer extends EventEmitter {
       interval?: number;
     };
   });
+  get socketState ():
+    WebSocket["readyState"]|null;
   fetchFeed(args: { timestamp: string | number; feed: string; }):
     Promise<Report>;
   fetchFeeds(args: { timestamp: string | number; feeds: string[]; }):

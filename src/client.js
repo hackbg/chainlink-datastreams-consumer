@@ -45,6 +45,9 @@ export class ChainlinkDataStreamsConsumer extends EventEmitter {
   unsubscribeFrom (feeds) {
     return this.socket.unsubscribeFrom(feeds);
   }
+  get socketState () {
+    return this.socket?.readyState ?? null;
+  }
   get feeds () {
     return this.socket.feeds;
   }
