@@ -6,6 +6,8 @@ import 'dotenv/config';
 import { WebSocket as _WebSocket } from 'ws';
 const WebSocket = _WebSocket || globalThis.WebSocket;
 
+process.on('unhandledRejection', (reason, promise) => { throw reason });
+
 const DEBUG = false;
 
 let mockServer
@@ -127,7 +129,7 @@ describe('fetching', function () {
   it("can't fetch without apiUrl", function () {
     const client = new Consumer(config());
     delete client.apiUrl
-    assert.rejects(()=>{client.fetch()})
+    assert.rejects(()=>client.fetcher.fetch('/'))
   });
 
 })
@@ -139,18 +141,20 @@ describe('subscribing', function () {
     assert.throws(() => new Consumer({...config(), wsUrl: null, feeds: ['0x0']}));
   });
 
-  it("doesn't allow connectedFeeds to be mutated directly", function () {
+  it("doesn't allow connectedFeeds to be mutated directly", async function () {
     const client = new Consumer(config());
     assert.throws(() => client.feeds.add('0x0'));
     assert.throws(() => client.feeds.delete('0x0'));
     assert.throws(() => client.feeds.clear());
+    await client.disconnect()
   });
 
   it("automatically disconnects when feeds are set to []", async function () {
     const client = new Consumer({...config(), feeds: feedIds, lazy: true });
     assert.strictEqual(client.feeds.size, feedIds.length);
-    await client.unsubscribeAll([])
+    await client.unsubscribeAll()
     assert.strictEqual(client.feeds.size, 0);
+    assert.strictEqual(client.socketState, WebSocket.CLOSED);
   });
 
   it('fetches a report for a single feed and validate the instance', async function () {
@@ -178,22 +182,24 @@ describe('subscribing', function () {
   it('receives reports when subscribed via constructor', function (done) {
     this.timeout(30000);
     const SDK = new Consumer({ ...config(), feeds: feedIds });
-    SDK.once('report', (report) => {
-      SDK.disconnect();
+    SDK.once('report', async (report) => {
+      await SDK.disconnect();
       done();
     });
   });
 
   it('receives reports when subscribed via method', function (done) {
     this.timeout(30000);
-    const SDK = new Consumer({ ...config() });
-    SDK.subscribeTo(feedIds[0]);
+    const SDK = new Consumer({ ...config(), lazy: true });
+    SDK.subscribeTo(feedIds[0]).then(async()=>{})
     SDK.once('report', async (report) => {
+      console.log({report: report.feedId, feed: feedIds[0]})
       if (report.feedId === feedIds[0]) {
+        console.log({unsub: feedIds[0]})
         await SDK.unsubscribeFrom(feedIds[0]);
         await SDK.subscribeTo(feedIds[1]);
         SDK.once('report', async (report) => {
-          await SDK.unsubscribeFrom(feedIds[1]);
+          await SDK.unsubscribeAll();
           done();
           //if (report.feedId === feedIds[1]) {
             //SDK.unsubscribeFrom(feedIds[1]);
@@ -213,7 +219,7 @@ describe('subscribing', function () {
       console.log('Closed socket...')
       SDK.once('socket-message', async () => {
         console.log('Reconnected, received 2nd message, closing for good...')
-        SDK.disconnect();
+        await SDK.disconnect();
         console.log('Done!')
         done()
       });
