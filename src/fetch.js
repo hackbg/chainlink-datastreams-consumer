@@ -2,9 +2,8 @@ import { ChainlinkDataStreamsConsumerError } from './error.js';
 import { EventEmitter } from './event.js'
 import { Report } from './report.js'
 
-export class Fetcher extends EventEmitter {
+export class Fetcher {
   constructor (options = {}) {
-    super()
     const { auth, url } = options
     this.auth = auth;
     this.url = url;
