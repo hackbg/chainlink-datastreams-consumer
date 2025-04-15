@@ -43,7 +43,7 @@ export class Socket {
     return this.connection?.socket.readyState || WebSocket.CLOSED;
   }
 
-  setFeeds = (feeds) => {
+  setFeeds = async (feeds) => {
     if (typeof feeds === 'string') feeds = [feeds];
     feeds = makeSetReadOnly(new Set(feeds || []), () => {
       throw new Error.ReadOnlyFeedSet();
@@ -51,19 +51,19 @@ export class Socket {
     if (!this.feeds || !compareSets(this.feeds, feeds)) {
       this.debug('New feed count:', feeds.size);
       defineProperty(this, 'feeds', () => feeds);
-      this.setEnabled(this.enabled);
+      return await this.setEnabled(this.enabled);
     }
   }
 
-  setEnabled (enabled) {
+  setEnabled = async (enabled) => {
     if (this.enabled != enabled) {
       this.debug(enabled ? 'Enabling' : 'Disabling')
       defineProperty(this, 'enabled', () => enabled);
-    }
-    if (this.enabled) {
-      return this.connect();
-    } else {
-      return this.connection?.close();
+      if (this.enabled) {
+        return await this.connect();
+      } else {
+        return await this.connection?.close();
+      }
     }
   }
 
@@ -214,7 +214,7 @@ function afterSocketOpen (socket, callback = x => x) {
         once(socket, 'open',  () => resolve(callback(socket)));
         once(socket, 'error', () => reject(new Error('afterSocketOpen: connection failed')));
         return
-      case WebSocket.CONNECTED:
+      case WebSocket.OPEN:
         return resolve(callback(socket));
       case WebSocket.CLOSING:
         return reject(new Error('afterSocketOpen: called on closing socket'))
@@ -230,13 +230,15 @@ function afterSocketClose (socket, callback = x => x) {
   return new Promise((resolve, reject)=>{
     switch (socket.readyState) {
       case WebSocket.CONNECTING:
-      case WebSocket.CONNECTED:
+      case WebSocket.OPEN:
       case WebSocket.CLOSING:
         return once(socket, 'close', () => resolve(callback(socket)));
       case WebSocket.CLOSED:
         return resolve(callback(socket));
       default:
-        return reject(new Error('afterSocketClose: invalid WebSocket readyState'));
+        return reject(
+          new Error(`afterSocketClose: invalid WebSocket readyState: ${socket.readyState}`)
+        );
     }
   })
 }

@@ -33,11 +33,11 @@ export class ChainlinkDataStreamsConsumer extends EventEmitter {
   fetchFeeds ({ timestamp, feeds }) {
     return this.fetcher.feeds({ timestamp, feeds });
   }
-  connect () {
-    return this.socket.setEnabled(true);
+  async connect () {
+    return await this.socket.setEnabled(true);
   }
-  disconnect () {
-    return this.socket.setDisabled(true);
+  async disconnect () {
+    return await this.socket.setEnabled(false);
   }
   get feeds () {
     return this.socket.feeds;
