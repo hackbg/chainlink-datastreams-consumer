@@ -213,20 +213,21 @@ describe('subscribing', function () {
     await SDK.unsubscribeAll();
   });
 
-  it('reconnects when socket closes', function (done) {
+  it('reconnects when socket closes', async function () {
     this.timeout(10000);
     const SDK = new Consumer({ ...config(), feeds: feedIds });
-    SDK.once('socket-message', async () => {
+    await new Promise(resolve=>SDK.once('socket-message', async () => {
       console.log('Received 1st message, closing socket...')
       await SDK.socket.connection.close();
-      console.log('Closed socket...')
-      SDK.once('socket-message', async () => {
-        console.log('Reconnected, received 2nd message, closing for good...')
-        await SDK.disconnect();
-        console.log('Done!')
-        done()
-      });
-    });
+      resolve();
+      console.log('Closed socket...');
+    }));
+    await new Promise(resolve=>SDK.once('socket-message', async () => {
+      console.log('Reconnected, received 2nd message, closing for good...')
+      await SDK.disconnect();
+      resolve();
+      console.log('Done!');
+    }));
   });
 
 })

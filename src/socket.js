@@ -95,11 +95,15 @@ export class Socket {
           this.logReconnecting(attempt);
         }
         try {
-          this.connection = createSocket({
-            url, headers, emitter, onMessage, debug: this.debug
-          })
+          // create the new connection
+          const options = { url, headers, emitter, onMessage, debug: this.debug }
+          this.connection = createSocket(options)
+          // wait for connection to report success
           await this.connection.ready
-          this.reconnect.attempts = 0; // reset reconnect attempts on successful connection
+          // on success, reset reconnect attempts
+          this.reconnect.attempts = 0; 
+          // on connection close, reconnect
+          this.emitter.once('socket-closed', () => this.enabled && this.connect());
           return // stop retrying on success
         } catch (e) {
           console.error(e)
@@ -157,8 +161,11 @@ function createSocket ({
   const index = ++Socket.connectionIndex;
   emitter.emit('socket-connect', { index, get socket () { return { url } } })
   const socket = bind(new WebSocket(url, { headers }));
+  const context = (error = null, message = null) => ({
+    index, error, get socket () { return socket }, get message () { return message },
+  })
   const ready = afterSocketOpen(socket);
-  emitter.emit('socket-connecting', { index, get socket () { socket } })
+  emitter.emit('socket-connecting', context())
   return {
     get index  () { return index },
     get ready  () { return ready },
@@ -179,33 +186,34 @@ function createSocket ({
     socket.removeEventListener('message', onMessageWrapper);
   }
   async function close () {
-    emitter.emit('socket-close-requested', { index, get socket () { socket } })
+    emitter.emit('socket-close-requested', context())
     const result = afterSocketClose(socket)
     await ready
     socket.close()
-    emitter.emit('socket-close-performed', { index, get socket () { socket } })
+    emitter.emit('socket-close-performed', context())
     return result
   }
   async function onMessageWrapper (message) {
-    emitter.emit('socket-message', { index, get socket () { socket }, get message () { message } });
+    emitter.emit('socket-message', context(null, message));
     onMessage && await Promise.resolve(onMessage({ index, socket, message }))
   }
   async function onErrorWrapper (error) {
-    emitter.emit('socket-error', { index, error, get socket () { socket } });
+    emitter.emit('socket-error', context(error));
     unbind()
     onError && await Promise.resolve(onError({ index, socket, error }))
+    emitter.emit('socket-closed', context(error));
   }
   async function onCloseWrapper () {
-    emitter.emit('socket-closing', { index, get socket () { socket } });
+    emitter.emit('socket-closing', context());
     unbind()
     onClose && await Promise.resolve(onClose({ index, socket }))
-    emitter.emit('socket-closed', { index, get socket () { socket } });
+    emitter.emit('socket-closed', context());
   }
   async function onOpenWrapper () {
-    emitter.emit('socket-opening', { socket });
+    emitter.emit('socket-opening', context());
     socket.removeEventListener('open', onOpen);
     onOpen && await Promise.resolve(onOpen({ index, socket }))
-    emitter.emit('socket-opened', { socket });
+    emitter.emit('socket-opened', context());
   }
 }
 
