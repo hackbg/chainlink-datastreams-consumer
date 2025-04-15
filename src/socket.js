@@ -123,7 +123,6 @@ export class Socket {
 
   onMessage = ({ message: { data } }) => {
     const report = Report.fromSocketMessage(data)
-    this.debug('Received message from feed', report.feedId)
     this.emitter.emit('report', report)
   }
 
