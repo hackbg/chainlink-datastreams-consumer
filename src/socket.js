@@ -49,21 +49,23 @@ export class Socket {
       throw new Error.ReadOnlyFeedSet();
     });
     if (!this.feeds || !compareSets(this.feeds, feeds)) {
-      this.debug('New feed count:', feeds.size);
+      this.debug('New feeds:', feeds.size, ...feeds);
       defineProperty(this, 'feeds', () => feeds);
-      return await this.setEnabled(this.enabled);
+      if (this.feeds.size === 0) {
+        return await this.connection?.close();
+      } else {
+        return await this.setEnabled(this.enabled);
+      }
     }
   }
 
   setEnabled = async (enabled) => {
-    if (this.enabled != enabled) {
-      this.debug(enabled ? 'Enabling' : 'Disabling')
-      defineProperty(this, 'enabled', () => enabled);
-      if (this.enabled) {
-        return await this.connect();
-      } else {
-        return await this.connection?.close();
-      }
+    this.debug(enabled ? 'Enabling' : 'Disabling')
+    defineProperty(this, 'enabled', () => enabled);
+    if (this.enabled) {
+      return await this.connect();
+    } else {
+      return await this.connection?.close();
     }
   }
 
@@ -109,7 +111,7 @@ export class Socket {
       throw new Error.Reconnect(error);
     } else if (this.connection) {
       this.debug('Disconnecting because all feeds were disabled. Set feeds to connect.')
-      await this.setEnabled(false);
+      await this.connection.close();
     } else {
       this.debug('Not connecting because no feeds are enabled. Set feeds to connect.')
     }

@@ -180,7 +180,7 @@ describe('subscribing', function () {
   });
 
   it('receives reports when subscribed via constructor', function (done) {
-    this.timeout(30000);
+    this.timeout(10000);
     const SDK = new Consumer({ ...config(), feeds: feedIds });
     SDK.once('report', async (report) => {
       await SDK.disconnect();
@@ -188,34 +188,37 @@ describe('subscribing', function () {
     });
   });
 
-  it('receives reports when subscribed via method', function (done) {
-    this.timeout(30000);
-    const SDK = new Consumer({ ...config(), lazy: true });
-    SDK.subscribeTo(feedIds[0]).then(async()=>{})
-    SDK.once('report', async (report) => {
-      console.log({report: report.feedId, feed: feedIds[0]})
-      if (report.feedId === feedIds[0]) {
-        console.log({unsub: feedIds[0]})
-        await SDK.unsubscribeFrom(feedIds[0]);
-        await SDK.subscribeTo(feedIds[1]);
-        SDK.once('report', async (report) => {
-          await SDK.unsubscribeAll();
-          done();
-          //if (report.feedId === feedIds[1]) {
-            //SDK.unsubscribeFrom(feedIds[1]);
-            //done();
-          //}
-        });
-      }
-    });
+  it('receives reports when subscribed via method', async function () {
+    this.timeout(10000);
+    const SDK = new Consumer({ ...config() });
+    await SDK.subscribeTo(feedIds[0])
+    await new Promise((resolve, reject) =>
+      SDK.once('report', ({ feedId }) => {
+        if (feedId === feedIds[0]) {
+          resolve()
+        } else {
+          reject(`Expected ${feedIds[0]}, got ${feedId}`)
+        }
+      }))
+    await SDK.unsubscribeFrom(feedIds[0]);
+    await SDK.subscribeTo(feedIds[1]);
+    await new Promise((resolve, reject) =>
+      SDK.once('report', ({ feedId }) => {
+        if (feedId === feedIds[1]) {
+          resolve()
+        } else {
+          reject(`Expected ${feedIds[1]}, got ${feedId}`)
+        }
+      }))
+    await SDK.unsubscribeAll();
   });
 
   it('reconnects when socket closes', function (done) {
-    this.timeout(30000);
-    const SDK = new Consumer({ ...config(), feeds: feedIds, lazy: true, });
+    this.timeout(10000);
+    const SDK = new Consumer({ ...config(), feeds: feedIds });
     SDK.once('socket-message', async () => {
       console.log('Received 1st message, closing socket...')
-      SDK.socket.connection.close();
+      await SDK.socket.connection.close();
       console.log('Closed socket...')
       SDK.once('socket-message', async () => {
         console.log('Reconnected, received 2nd message, closing for good...')
@@ -224,7 +227,6 @@ describe('subscribing', function () {
         done()
       });
     });
-    SDK.connect();
   });
 
 })

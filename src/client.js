@@ -43,11 +43,11 @@ export class ChainlinkDataStreamsConsumer extends EventEmitter {
     return this.socket.feeds;
   }
   subscribeTo (feeds = []) {
-    return this.socket.setFeeds([...this.feeds, (typeof feeds === 'string') ? [feeds] : feeds]);
+    return this.socket.setFeeds([...this.feeds, ...(typeof feeds === 'string') ? [feeds] : feeds]);
   }
   unsubscribeFrom (feeds = []) {
     if (typeof feeds === 'string') feeds = [feeds];
-    return this.socket.setFeeds([...this.feeds].filter(feed=>!feeds.has(feed)));
+    return this.socket.setFeeds([...this.feeds].filter(feed=>!feeds.includes(feed)));
   }
   unsubscribeAll () {
     return this.socket.setFeeds([])
