@@ -90,9 +90,9 @@ export class Socket {
         const attempt = this.reconnect?.attempts ? ++this.reconnect.attempts : 1;
         if (firstTry) {
           firstTry = false;
-          this.logConnecting(attempt);
+          this.debug(`Connecting (#${attempt}/${this.reconnect.maxAttempts})`);
         } else {
-          this.logReconnecting(attempt);
+          this.debug(`Reconnecting (#${attempt}/${this.reconnect.maxAttempts})`);
         }
         try {
           // create the new connection
@@ -127,24 +127,7 @@ export class Socket {
     this.emitter.emit('report', report)
   }
 
-  debug = (...args) =>
-    console.debug(`[${this.id}]`, ...args);
-  logConnecting = (attempt, maxAttempts = this.reconnect.maxAttempts) =>
-    this.debug(`Connecting (#${attempt}/${maxAttempts})`);
-  logReconnecting = (attempt, maxAttempts = this.reconnect.maxAttempts) =>
-    this.debug(`Reconnecting (#${attempt}/${maxAttempts})`);
-  logConnectionFailed = (
-    attempt     = this.reconnect.attempts,
-    maxAttempts = this.reconnect.maxAttempts,
-    interval    = this.reconnect.interval,
-  ) =>
-    this.debug(`Connection failed. Retry #${attempt}/${maxAttempts} in ${interval}ms...`);
-  logConnectionClosed = (
-    attempt     = this.reconnect.attempts,
-    maxAttempts = this.reconnect.maxAttempts,
-    interval    = this.reconnect.interval,
-  ) =>
-    this.debug(`Connection closed. Retry #${attempts}/${maxAttempts} in ${interval}ms...`);
+  debug = (...args) => console.debug(`[${this.id}]`, ...args);
 
 }
 
