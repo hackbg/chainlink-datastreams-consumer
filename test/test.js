@@ -135,7 +135,7 @@ describe('fetching', function () {
 describe('subscribing', function () {
 
   it("can't subscribe to feeds without wsUrl", function () {
-    assert.doesNotThrow(() => new Consumer({...config(), wsUrl: null, feeds: []}));
+    assert.throws(() => new Consumer({...config(), wsUrl: null, feeds: []}));
     assert.throws(() => new Consumer({...config(), wsUrl: null, feeds: ['0x0']}));
   });
 
@@ -146,10 +146,11 @@ describe('subscribing', function () {
     assert.throws(() => client.feeds.clear());
   });
 
-  it("automatically disconnects when feeds are set to []", function () {
+  it("automatically disconnects when feeds are set to []", async function () {
     const client = new Consumer({...config(), feeds: feedIds, lazy: true });
-    assert.ok(client.feeds.size > 0);
-    client.feeds = []
+    assert.strictEqual(client.feeds.size, feedIds.length);
+    await client.unsubscribeAll([])
+    assert.strictEqual(client.feeds.size, 0);
   });
 
   it('fetches a report for a single feed and validate the instance', async function () {
@@ -183,7 +184,7 @@ describe('subscribing', function () {
     });
   });
 
-  it.only('receives reports when subscribed via method', function (done) {
+  it('receives reports when subscribed via method', function (done) {
     this.timeout(30000);
     const SDK = new Consumer({ ...config() });
     SDK.subscribeTo(feedIds[0]);

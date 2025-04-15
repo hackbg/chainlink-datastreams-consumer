@@ -47,11 +47,13 @@ declare class ChainlinkDataStreamsConsumer extends EventEmitter {
     Promise<WebSocket | null>;
   unsubscribeFrom(feeds: string | string[]):
     Promise<WebSocket | null>;
+  unsubscribeAll():
+    Promise<WebSocket | null>;
   connect():
     Promise<void>;
   disconnect():
     void;
-  feeds:
+  get feeds:
     Set<string> & { add: never, delete: never, clear: never };
   generateHeaders(
     method: string,

@@ -6,97 +6,64 @@ import { WebSocket as _WebSocket } from 'ws';
 
 export const WebSocket = _WebSocket || globalThis.WebSocket;
 
-let connectionIndex = 0
-
 export class Socket {
 
-  // Global socket counter.
-  static index = 0;
+  // Global counter of Socket instances.
+  static logicalIndex = 0;
+
+  // Global counter of underlying WebSocket instances.
+  static connectionIndex = 0
 
   constructor (options = {}) {
-    const { auth, url, feeds, lazy = false, emitter, } = options
-    this.index = ++Socket.index;
+    const { id, auth, url, feeds, lazy = false, emitter, } = options
+    Socket.logicalIndex++
+    this.id  = id ?? `socket${Socket.logicalIndex}`;
     this.url = url;
+    if (!this.url) {
+      throw new Error.NoWsUrl();
+    }
     this.auth = auth;
     this.emitter = emitter;
     let { reconnect } = options
-    if (typeof reconnect === 'boolean') reconnect = { enabled: reconnect }
+    if (typeof reconnect === 'boolean') {
+      reconnect = { enabled: reconnect }
+    }
     this.reconnect = {
       enabled:     reconnect.enabled ?? true,
       interval:    reconnect.interval ?? 1000,
       maxAttempts: reconnect.maxAttempts ?? Infinity,
       attempts:    0,
     };
-    this.enabled = true;
     this.connection = null;
-    this.setConnectedFeeds(feeds);
-  }
-
-  debug = (...args) => console.debug(
-    `Socket #${this.index}:`, ...args
-  );
-
-  logConnecting = (attempt) => this.debug(
-    `Connecting (#${attempt}/${this.reconnect.maxAttempts})`
-  );
-
-  logReconnecting = (attempt) => this.debug(
-    `Reconnecting (#${attempt}/${this.reconnect.maxAttempts})`
-  );
-
-  logConnectionFailed = () => this.debug(
-    `Connection failed. ` +
-    `Retry #${this.reconnect.attempts}/${this.reconnect.maxAttempts} ` +
-    `in ${this.reconnect.interval}ms...`
-  );
-
-  logConnectionClosed = () => this.debug(
-    `Connection closed. ` +
-    `Retry #${this.reconnect.attempts}/${this.reconnect.maxAttempts} ` +
-    `in ${this.reconnect.interval}ms...`,
-  );
-
-  setConnectedFeeds = (feeds) => {
-
-    feeds = makeSetReadOnly(new Set(feeds || []), () => {
-      throw new Error.ReadOnlyFeedSet();
-    });
-
-    this.debug('Using URL and feeds:', this.url, [...feeds]);
-
-    if ((feeds.size > 0) && !this.url) {
-      throw new Error.NoWsUrl();
-    }
-
-    if (!this.feeds || !compareSets(this.feeds, feeds)) {
-      defineProperty(this, 'feeds', () => feeds, (feeds) => {
-        this.setConnectedFeeds(feeds);
-        return feeds;
-      });
-      if (!this.lazy) {
-        return this.enable()
-      }
-    }
-
-    return Promise.resolve(null)
-
+    this.setFeeds(feeds);
+    this.setEnabled(!lazy);
   }
 
   get readyState () {
     return this.connection?.socket.readyState || WebSocket.CLOSED;
   }
 
-  enable = () => {
-    this.enabled = true;
-    if (!this.connection) {
-      return this.connect();
+  setFeeds = (feeds) => {
+    if (typeof feeds === 'string') feeds = [feeds];
+    feeds = makeSetReadOnly(new Set(feeds || []), () => {
+      throw new Error.ReadOnlyFeedSet();
+    });
+    if (!this.feeds || !compareSets(this.feeds, feeds)) {
+      this.debug('New feed count:', feeds.size);
+      defineProperty(this, 'feeds', () => feeds);
+      this.setEnabled(this.enabled);
     }
   }
 
-  disable = async () => {
-    this.enabled = false;
-    if (this.connection) {
-      await this.connection.close()
+  setEnabled (enabled) {
+    if (this.enabled != enabled) {
+      this.debug(enabled ? 'Enabling' : 'Disabling')
+      defineProperty(this, 'enabled', () => enabled);
+    }
+    if (this.enabled) {
+      return this.connect();
+    } else {
+      return this.connection?.close();
     }
   }
 
@@ -110,7 +77,6 @@ export class Socket {
   }
 
   connect = async () => {
-    this.enabled = true;
     const { emitter, decodeAndEmit, feeds = new Set(), onMessage } = this;
     if (feeds.size > 0) {
       const { url, headers } = this.configure(feeds);
@@ -143,7 +109,7 @@ export class Socket {
       throw new Error.Reconnect(error);
     } else if (this.connection) {
       this.debug('Disconnecting because all feeds were disabled. Set feeds to connect.')
-      await this.disable();
+      await this.setEnabled(false);
     } else {
       this.debug('Not connecting because no feeds are enabled. Set feeds to connect.')
     }
@@ -155,39 +121,24 @@ export class Socket {
     this.emitter.emit('report', report)
   }
 
-  subscribeTo = (feeds) => {
-    this.debug('Subscribe to:', feeds);
-    if (typeof feeds === 'string') {
-      feeds = [feeds];
-    }
-    for (const feed of new Set(feeds)) {
-      if (!this.feeds.has(feed)) {
-        feeds = new Set([...this.feeds, ...feeds]);
-        this.debug('New feed count:', feeds.size);
-        return this.setConnectedFeeds(feeds);
-      }
-    }
-    this.debug('No new feeds in:', feeds);
-  };
-
-  unsubscribeFrom = (feeds) => {
-    this.debug('Unsubscribe from:', feeds);
-    if (typeof feeds === 'string') {
-      feeds = [feeds];
-    }
-    let changed = false;
-    const updatedFeeds = new Set(this.feeds);
-    for (const feed of new Set(feeds)) {
-      if (updatedFeeds.has(feed)) {
-        updatedFeeds.delete(feed);
-        changed = true;
-      }
-    }
-    if (changed) {
-      this.debug('New feed count:', updatedFeeds.size);
-      return this.setConnectedFeeds(updatedFeeds);
-    }
-  };
+  debug = (...args) =>
+    console.debug(`[${this.id}]`, ...args);
+  logConnecting = (attempt, maxAttempts = this.reconnect.maxAttempts) =>
+    this.debug(`Connecting (#${attempt}/${maxAttempts})`);
+  logReconnecting = (attempt, maxAttempts = this.reconnect.maxAttempts) =>
+    this.debug(`Reconnecting (#${attempt}/${maxAttempts})`);
+  logConnectionFailed = (
+    attempt     = this.reconnect.attempts,
+    maxAttempts = this.reconnect.maxAttempts,
+    interval    = this.reconnect.interval,
+  ) =>
+    this.debug(`Connection failed. Retry #${attempt}/${maxAttempts} in ${interval}ms...`);
+  logConnectionClosed = (
+    attempt     = this.reconnect.attempts,
+    maxAttempts = this.reconnect.maxAttempts,
+    interval    = this.reconnect.interval,
+  ) =>
+    this.debug(`Connection closed. Retry #${attempts}/${maxAttempts} in ${interval}ms...`);
 
 }
 
@@ -201,7 +152,7 @@ function createSocket ({
   onClose,
   debug = () => {}
 }) {
-  const index = ++connectionIndex;
+  const index = ++Socket.connectionIndex;
   emitter.emit('socket-connect', { index, get socket () { return { url } } })
   const socket = bind(new WebSocket(url, { headers }));
   const ready = afterSocketOpen(socket);
@@ -299,7 +250,7 @@ export const Error = class SocketError extends ChainlinkDataStreamsConsumerError
   static ReadOnlyFeedSet = class ReadOnlyFeedSetError extends SocketError {
     constructor () {
       super(
-        'The set of feeds is read-only. Use setConnectedFeeds to reconfigure, '+
+        'The set of feeds is read-only. Use setFeeds to reconfigure, '+
         'or clone the set to mutate its values outside the client module.'
       );
     }

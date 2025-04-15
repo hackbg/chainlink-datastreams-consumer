@@ -34,25 +34,26 @@ export class ChainlinkDataStreamsConsumer extends EventEmitter {
     return this.fetcher.feeds({ timestamp, feeds });
   }
   connect () {
-    return this.socket.enable();
+    return this.socket.setEnabled(true);
   }
   disconnect () {
-    return this.socket.disable();
-  }
-  subscribeTo (feeds) {
-    return this.socket.subscribeTo(feeds);
-  }
-  unsubscribeFrom (feeds) {
-    return this.socket.unsubscribeFrom(feeds);
-  }
-  get socketState () {
-    return this.socket?.readyState ?? null;
+    return this.socket.setDisabled(true);
   }
   get feeds () {
     return this.socket.feeds;
   }
-  set feeds (feeds) {
-    return this.socket.feeds = feeds;
+  subscribeTo (feeds = []) {
+    return this.socket.setFeeds([...this.feeds, (typeof feeds === 'string') ? [feeds] : feeds]);
+  }
+  unsubscribeFrom (feeds = []) {
+    if (typeof feeds === 'string') feeds = [feeds];
+    return this.socket.setFeeds([...this.feeds].filter(feed=>!feeds.has(feed)));
+  }
+  unsubscribeAll () {
+    return this.socket.setFeeds([])
+  }
+  get socketState () {
+    return this.socket?.readyState ?? null;
   }
   generateHeaders (...args) {
     return this.auth.generateHeaders(...args);

@@ -1,25 +1,28 @@
 # 2.0.0
 
-* Custom `Error` classes, discernible using `instanceof`.
-* Automatic reconnection of WebSocket.
-  * Use `new Client({ lazy: true, ... })` option to prevent initial autoconnect
-  * Use `connect()` and `disconnect()` to manually set the socket state
-* **Breaking changes** to configuration:
-  * Full URLs now required instead of bare hostnames:
-    * `hostname` -> `apiUrl`, now requires protocol (i.e. `https://`)
-    * `wsHostname` -> `wsUrl`, now requires protocol (i.e. `wss://`)
-    * `http://` and `ws://` supported (for testing only!)
-  * `clientID` -> `clientId` to match capitalization of other parameters
-  * Configuration variables in `.env` updated accordingly, see `.env.example`.
+* **NEW:** Unencrypted `http://` and `ws://` are now supported (use for testing only!)
+* **NEW:** Custom `Error` classes, discernible using `instanceof`.
+* **NEW:** Constructor option `reconnect` (default on) allows reconnection of WebSocket.
+* **NEW:** Constructor option `lazy` (default off) prevents autoconnect to socket.
+* **NEW:** Methods `connect()` and `disconnect()` manually set the socket connection state.
+* **NEW:** Method `unsubscribeAll()` clears feeds and disconnects.
+* **NEW:** Field `socketState` reports connection state of currently used `WebSocket`.
+* **BREAKING:** `feeds` field is now read-only.
+* **BREAKING:** Constructor option `hostname` is now `apiUrl` and requires protocol
+  (preferably `https://`, alternatively `http://`, possibly `//`)
+* **BREAKING:** Constructor option `wsHostname` is now `wsUrl` and requires protocol
+  (preferably `wss://`, alternatively `ws://`, possibly `//`)
+* **BREAKING:** Constructor option `clientID` is now `clientId`, to match others.
+* **BREAKING:** Configuration variables in `.env` updated, see `.env.example`.
 
 # 1.1.0
 
-* Allow only `GET|HEAD|OPTIONS` in `generateHeaders`
+* **NEW**: Allow only `GET|HEAD|OPTIONS` in `generateHeaders`
 
 # 1.0.1
 
-* Harden `generateHeaders`
+* **FIX**: Harden `generateHeaders`
 
 # 1.0.0
 
-* Initial release
+* **NEW**: Initial release
