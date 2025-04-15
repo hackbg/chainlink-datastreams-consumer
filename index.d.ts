@@ -1,11 +1,22 @@
 import type { WebSocket } from 'ws';
 
-export type ReconnectOptions = {
-  enabled?: boolean;
-  maxReconnectAttempts?: number;
-  reconnectInterval?: number;
-};
-export default class ChainlinkDataStreamsConsumer {
+export {
+  Report,
+  EventEmitter,
+  ChainlinkDataStreamsConsumer as default,
+  ChainlinkDataStreamsConsumer as Consumer,
+  ChainlinkDataStreamsError as Error,
+  generateHeaders,
+}
+
+declare class EventEmitter {
+  on(event: string, cb: Function): this;
+  off(event: string, cb: Function): this;
+  once(event: string, cb: Function): this;
+  emit(event: string, data: unknown): this;
+}
+
+declare class ChainlinkDataStreamsConsumer extends EventEmitter {
   constructor(args: {
     /** API client ID. */
     clientId?: string;
@@ -17,40 +28,42 @@ export default class ChainlinkDataStreamsConsumer {
     wsUrl?: string;
     /** List of feed IDs to subscribe to. */
     feeds?: string[];
-    /** Disable or configure socket auto-reconnect. */
-    reconnect?: boolean|ReconnectOptions;
-    /** Don't automatically connect to socket on construction or setting feeds. */
+    /** Automatically connect to socket on construction or setting feeds? */
     lazy?: boolean;
+    /** Disable or configure socket auto-reconnect. */
+    reconnect?: boolean|{
+      enabled?: boolean;
+      maxAttempts?: number;
+      interval?: number;
+    };
   });
-
-  fetchFeed(args: {
-    timestamp: string | number;
-    feed: string;
-  }): Promise<Report>;
-
-  fetchFeeds(args: {
-    timestamp: string | number;
-    feeds: string[];
-  }): Promise<Record<string, Report>>;
-
-  subscribeTo(feeds: string | string[]): Promise<WebSocket | null>;
-
-  unsubscribeFrom(feeds: string | string[]): Promise<WebSocket | null>;
-
-  connect(): Promise<void>;
-
-  disconnect(): void;
-
-  feeds: Set<string>;
-
-  on(event: string, cb: Function): this;
-
-  off(event: string, cb: Function): this;
-
-  once(event: string, cb: Function): this;
+  get socketState ():
+    WebSocket["readyState"]|null;
+  fetchFeed(args: { timestamp: string | number; feed: string; }):
+    Promise<Report>;
+  fetchFeeds(args: { timestamp: string | number; feeds: string[]; }):
+    Promise<Record<string, Report>>;
+  subscribeTo(feeds: string | string[]): 
+    Promise<WebSocket | null>;
+  unsubscribeFrom(feeds: string | string[]):
+    Promise<WebSocket | null>;
+  unsubscribeAll():
+    Promise<WebSocket | null>;
+  connect():
+    Promise<void>;
+  disconnect():
+    void;
+  get feeds:
+    Set<string> & { add: never, delete: never, clear: never };
+  generateHeaders(
+    method: string,
+    path: string,
+    search: string|URLSearchParams,
+    timestamp?: number
+  ): AuthHeaders;
 }
 
-export type Report = {
+declare type Report = {
   feedId: string;
   observationsTimestamp: bigint;
 } & (
@@ -90,3 +103,21 @@ export type Report = {
       marketStatus: number;
     }
 );
+
+declare class ChainlinkDataStreamsError extends Error {
+}
+
+declare function generateHeaders (args: {
+  clientId: string,
+  clientSecret: string,
+  method: string,
+  path: string,
+  search: string|URLSearchParams,
+  timestamp?: number
+}): AuthHeaders
+
+declare type AuthHeaders = {
+  'Authorization':                    string
+  'X-Authorization-Timestamp':        string
+  'X-Authorization-Signature-SHA256': string
+}
