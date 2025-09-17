@@ -160,6 +160,15 @@ export class Report {
       { name: 'price', type: 'int192' },
       { name: 'marketStatus', type: 'uint32' },
     ],
+    v7: [
+      { name: 'feedId', type: 'bytes32' },
+      { name: 'validFromTimestamp', type: 'uint32' },
+      { name: 'observationsTimestamp', type: 'uint32' },
+      { name: 'nativeFee', type: 'uint192' },
+      { name: 'linkFee', type: 'uint192' },
+      { name: 'expiresAt', type: 'uint32' },
+      { name: 'exchangeRate', type: 'int192' },
+    ],
   };
 
   static feedIdToVersion = (feedId) => {
@@ -188,6 +197,8 @@ export class Report {
         return 'v3';
       case 4:
         return 'v4';
+      case 7:
+        return 'v7';
       default:
         throw new Error(
           `Unsupported version ${version} from feed ID ${feedId}`,
