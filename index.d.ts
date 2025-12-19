@@ -53,7 +53,7 @@ declare class ChainlinkDataStreamsConsumer extends EventEmitter {
     Promise<void>;
   disconnect():
     void;
-  get feeds:
+  get feeds ():
     Set<string> & { add: never, delete: never, clear: never };
   generateHeaders(
     method: string,
